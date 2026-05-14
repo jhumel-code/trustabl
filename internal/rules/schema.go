@@ -1,0 +1,92 @@
+package rules
+
+import "github.com/trustabl/karenctl/internal/models"
+
+// PolicyFile is the top-level structure of a .yaml policy file.
+type PolicyFile struct {
+	Policy PolicyMeta `yaml:"policy"`
+	Rules  []RuleDef  `yaml:"rules"`
+}
+
+// PolicyMeta holds the policy-level metadata.
+type PolicyMeta struct {
+	ID          string `yaml:"id"`
+	Name        string `yaml:"name"`
+	Category    string `yaml:"category"` // maps to models.DetectorCategory
+	Description string `yaml:"description"`
+}
+
+// RuleDef is one rule entry inside a policy file.
+// Category is not in YAML — the loader copies it from PolicyMeta.Category.
+type RuleDef struct {
+	ID          string                  `yaml:"id"`
+	Title       string                  `yaml:"title"`
+	Severity    models.Severity         `yaml:"severity"`
+	Confidence  float64                 `yaml:"confidence"`
+	AppliesTo   []string                `yaml:"applies_to"`
+	Singleton   bool                    `yaml:"singleton"`
+	Match       MatchExpr               `yaml:"match"`
+	Explanation string                  `yaml:"explanation"`
+	Fix         string                  `yaml:"fix"`
+	FixHints    map[string]any          `yaml:"fix_hints,omitempty"`
+	Category    models.DetectorCategory `yaml:"-"` // populated by loader
+}
+
+// MatchExpr is a recursive predicate or combinator. All set fields are ANDed.
+type MatchExpr struct {
+	// Combinators
+	All []MatchExpr `yaml:"all,omitempty"`
+	Any []MatchExpr `yaml:"any,omitempty"`
+	Not *MatchExpr  `yaml:"not,omitempty"`
+
+	// Bool predicates — pointer distinguishes "set to false" from "absent"
+	HasDocstring      *bool `yaml:"has_docstring,omitempty"`
+	HasParams         *bool `yaml:"has_params,omitempty"`
+	HasTypedParams    *bool `yaml:"has_typed_params,omitempty"`
+	HasRaise          *bool `yaml:"has_raise,omitempty"`
+	HasTryExcept      *bool `yaml:"has_try_except,omitempty"`
+	HasShellCall      *bool `yaml:"has_shell_call,omitempty"`
+	HasWriteCall      *bool `yaml:"has_write_call,omitempty"`
+	HasDynamicURLCall *bool `yaml:"has_dynamic_url_call,omitempty"`
+	Always            *bool `yaml:"always,omitempty"`
+
+	// String-list predicates
+	NameIn        []string `yaml:"name_in,omitempty"`
+	NameHasPrefix []string `yaml:"name_has_prefix,omitempty"`
+	HasBodyText   []string `yaml:"has_body_text,omitempty"`
+
+	// Nested struct predicates
+	ParamNameMatches   *ParamNameMatchExpr     `yaml:"param_name_matches,omitempty"`
+	CallWithoutKwarg   *CallWithoutKwargExpr   `yaml:"call_without_kwarg,omitempty"`
+	CallWithKwargValue *CallWithKwargValueExpr `yaml:"call_with_kwarg_value,omitempty"`
+	CallUsesParam      *CallUsesParamExpr      `yaml:"call_uses_param,omitempty"`
+}
+
+// ParamNameMatchExpr matches parameter names against exact/contains/suffix/prefix patterns.
+type ParamNameMatchExpr struct {
+	Exact    []string `yaml:"exact,omitempty"`
+	Contains []string `yaml:"contains,omitempty"`
+	Suffixes []string `yaml:"suffixes,omitempty"`
+	Prefixes []string `yaml:"prefixes,omitempty"`
+}
+
+// CallWithoutKwargExpr fires when a matching call is missing the named keyword argument.
+type CallWithoutKwargExpr struct {
+	Callees []string `yaml:"callees"`
+	Missing string   `yaml:"missing"`
+}
+
+// CallWithKwargValueExpr fires when a matching call has kwarg == value.
+type CallWithKwargValueExpr struct {
+	CalleePrefix string   `yaml:"callee_prefix,omitempty"`
+	Callees      []string `yaml:"callees,omitempty"`
+	Kwarg        string   `yaml:"kwarg"`
+	Value        string   `yaml:"value"`
+}
+
+// CallUsesParamExpr fires when a matching call receives a path-like param as an arg.
+type CallUsesParamExpr struct {
+	Callees        []string `yaml:"callees,omitempty"`
+	CalleePrefix   string   `yaml:"callee_prefix,omitempty"`
+	CalleePrefixes []string `yaml:"callee_prefixes,omitempty"`
+}
