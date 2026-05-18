@@ -21,6 +21,16 @@ type ParsedFile struct {
 	Tree    *sitter.Tree
 }
 
+// DiscoverToolsFromParsed runs tool discovery on pre-parsed files. Used by
+// tests and by ResolveEdges which already holds ParsedFile objects.
+func DiscoverToolsFromParsed(parsed []ParsedFile) []models.ToolDef {
+	var out []models.ToolDef
+	for _, pf := range parsed {
+		out = append(out, toolsInFile(pf)...)
+	}
+	return out
+}
+
 // DiscoverTools walks the manifest's Python files, parses each, and extracts
 // ToolDefs.
 //
@@ -71,7 +81,9 @@ func toolsInFile(pf ParsedFile) []models.ToolDef {
 		if kind == models.KindUnknown {
 			continue
 		}
-		out = append(out, buildTool(fn, pf, kind))
+		tool := buildTool(fn, pf, kind)
+		tool.Config = extractDecoratorKwargs(dec, pf.Source)
+		out = append(out, tool)
 	}
 
 	// Pass 2: bare function_definitions that call subprocess/os.system but
@@ -151,6 +163,36 @@ func callsShell(fn *sitter.Node, src []byte) bool {
 		return true
 	})
 	return found
+}
+
+// extractDecoratorKwargs collects keyword arguments from the first decorator
+// call in a decorated_definition (e.g. @function_tool(strict_mode=False)).
+func extractDecoratorKwargs(dec *sitter.Node, src []byte) map[string]string {
+	config := map[string]string{}
+	for i := 0; i < int(dec.ChildCount()); i++ {
+		decoratorNode := dec.Child(i)
+		if decoratorNode.Type() != "decorator" {
+			continue
+		}
+		body := decoratorNode.NamedChild(0)
+		if body == nil || body.Type() != "call" {
+			continue
+		}
+		args := body.ChildByFieldName("arguments")
+		if args == nil {
+			continue
+		}
+		for j := 0; j < int(args.ChildCount()); j++ {
+			arg := args.Child(j)
+			if arg.Type() != "keyword_argument" {
+				continue
+			}
+			name := astutil.NodeText(arg.ChildByFieldName("name"), src)
+			value := astutil.NodeText(arg.ChildByFieldName("value"), src)
+			config[name] = value
+		}
+	}
+	return config
 }
 
 func buildTool(fn *sitter.Node, pf ParsedFile, kind models.ToolKind) models.ToolDef {

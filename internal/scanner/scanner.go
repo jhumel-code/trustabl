@@ -52,13 +52,20 @@ func Run(cfg Config) (models.ScanResult, error) {
 	if err != nil {
 		return models.ScanResult{}, fmt.Errorf("discover: %w", err)
 	}
+	agents := analysis.DiscoverAgents(parsed)
+	guardrails := analysis.DiscoverGuardrails(parsed)
+	sessions := analysis.DiscoverSessions(parsed)
 
 	inventory := models.RepoInventory{
 		Tools:              tools,
+		Agents:             agents,
+		Guardrails:         guardrails,
+		Sessions:           sessions,
 		Manifest:           profile.Manifest,
-		SDKsDetected:       deriveSDKsDetected(tools, nil),
+		SDKsDetected:       deriveSDKsDetected(tools, agents),
 		UsesDefaultTracing: computeUsesDefaultTracing(parsed),
 	}
+	analysis.ResolveEdges(&inventory, parsed)
 
 	// Phase 2b: policy selection (full implementation in Task 36)
 	registry, err := rules.LoadRegistry(rules.DefaultFS())
