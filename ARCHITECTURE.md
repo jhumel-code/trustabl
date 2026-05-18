@@ -55,54 +55,72 @@ infrastructure carries over for free when language #2 ships.
 
 ## 2. Pipeline
 
-The scan is a one-shot pipeline. There is no concurrency between stages and no
+The scan is a staged pipeline. There is no concurrency between stages and no
 state shared across runs. `scanner.Run` ([internal/scanner/scanner.go](internal/scanner/scanner.go))
-calls each stage in order; the output of one is the input to the next.
+calls each phase in order; the output of one is the typed input to the next.
 
 ```
 target (path or URL)
     │
     ▼
-┌──────────────┐
-│  Importer    │  ingestion.Resolve   → *Source       (clones if remote)
-├──────────────┤
-│  Normalizer  │  ingestion.Normalize → ScanManifest  (file inventory)
-├──────────────┤
-│  Discovery   │  analysis.DiscoverTools → []ToolDef + []ParsedFile
-├──────────────┤
-│  Detectors   │  detectors.Registry.Run → []Finding
-├──────────────┤
-│  Scoring     │  analysis.Score → []ToolReadiness, OverallScore
-├──────────────┤
-│  Generation  │  generation.GenerateHooks + GeneratePolicy → []GeneratedArtifact
-├──────────────┤
-│  Review      │  review.Renderer / ApplyArtifacts / ExportZIP
-└──────────────┘
+PHASE 1 — Reconnaissance (ingestion.Recon)
+  Output: RepoProfile {Languages, SDKDeps, Manifest, Components}
+    │
+    ▼
+PHASE 2a — Inventory (analysis.DiscoverTools, DiscoverAgents,
+                       DiscoverGuardrails, DiscoverSessions, ResolveEdges)
+  Output: RepoInventory {Tools, Agents, Guardrails, Sessions, SDKsDetected,
+                          UsesDefaultTracing}
+    │
+    ▼
+PHASE 2b — Policy selection (rules.LoadFor + SelectAndEmitMETA)
+  Loads policy packs matching SDKsDetected; emits META-001/002/003 findings
+    │
+    ▼
+PHASE 2c — Analysis (detectors.Registry.Run)
+  ToolDetectors fire per inv.Tools entry
+  AgentDetectors fire per inv.Agents entry
+  RepoDetectors fire once per scan
+    │
+    ▼
+Scoring → Generation → Review
     │
     ▼
 ScanResult  (JSON-serializable, returned to the CLI)
 ```
 
-### Stage 1 — Importer ([internal/ingestion/importer.go](internal/ingestion/importer.go))
+### Phase 1 — Reconnaissance ([internal/ingestion/normalizer.go](internal/ingestion/normalizer.go))
 
-Resolves a CLI target string to a directory on disk. Local paths pass through;
-URLs and `git@host:owner/repo` shorthand are shallow-cloned to a temp dir using
-`go-git`. The returned `Source` carries a `Cleanup()` callback the caller MUST
-defer; for local targets it is a no-op so call sites don't need a branching
-defer.
+`ingestion.Resolve` resolves a CLI target to a directory on disk (cloning
+remote repos). `ingestion.Recon` then walks the source tree and returns a
+`RepoProfile`:
 
-### Stage 2 — Normalizer ([internal/ingestion/normalizer.go](internal/ingestion/normalizer.go))
+- **Languages** detected (by file extension).
+- **SDK dependencies declared** — text search in `pyproject.toml` /
+  `requirements.txt` / `Pipfile` / `poetry.lock` / `package.json` / `go.mod`
+  for known SDK package names. Each hit becomes a typed `SDKDep{Name, Source}`.
+- **`ScanManifest`** — per-language file paths and discovered agent components.
 
-Walks the source tree, collecting per-language file paths
-(`PythonFiles`, `TypeScriptFiles`, `JavaScriptFiles`, plus `YAMLFiles`,
-`JSONFiles`, `MarkdownFiles`) and producing two kinds of metadata:
+Phase 1 must stay cheap. No tree-sitter parses here.
 
-**Manifest-level signals.**
+### Phase 2a — Inventory ([internal/analysis/](internal/analysis/))
 
-- `HasClaudeSDKDependency` — text search in pyproject.toml / requirements.txt /
-  Pipfile / poetry.lock for SDK markers.
-- `HasOpenShellArtifact` — presence of an `openshell/` dir or a YAML file
-  declaring `openshell.nvidia.com/v…`.
+For each language Phase 1 cleared, do the AST work and produce a `RepoInventory`:
+
+- **DiscoverTools** (`discovery.go`) — two-pass Python discovery (decorated
+  functions and bare shell-invoking functions). Also captures decorator kwargs
+  into `ToolDef.Config` for rules that inspect `@function_tool(strict_mode=...)`.
+- **DiscoverAgents** (`agents.go`) — finds `Agent(...)` / `SandboxAgent(...)` /
+  `AgentDefinition(...)` constructor calls; captures all constructor kwargs into
+  a typed `KwargTree`; sets `Opaque=true` for `Agent(**config)` or
+  `tools=<non-literal>`.
+- **DiscoverGuardrails** — finds `@input_guardrail` / `@output_guardrail`
+  decorated functions.
+- **DiscoverSessions** — finds construction sites for `*Session` classes from
+  the agents SDK.
+- **ResolveEdges** — links agent `tools=`, `handoffs=`, `input_guardrails=`
+  references to discovered definitions in the same repo; cross-module resolution
+  uses import statements; unresolvable references are flagged `External=true`.
 
 **Discovered agent components** (`Components []AgentComponent`).
 
@@ -135,7 +153,7 @@ deliberately-included agent-config directory.
 Manifest fields are emitted as JSON in `ScanResult.manifest` for CI consumers;
 the Go pipeline does not currently branch on them.
 
-### Stage 3 — Tool Discovery ([internal/analysis/discovery.go](internal/analysis/discovery.go))
+#### Discovery detail ([internal/analysis/discovery.go](internal/analysis/discovery.go))
 
 Two-pass discovery over each Python file. tree-sitter is used because we need
 structural recognition (decorator nodes, function bodies, call shapes) rather
@@ -170,21 +188,41 @@ combinations) and triple-vs-single quote markers. Parameter names come from
 any parameter is type-annotated (`typed_parameter` or `typed_default_parameter`
 in tree-sitter terms).
 
-### Stage 4 — Detectors ([internal/rules/](internal/rules/) + [internal/analysis/detectors/](internal/analysis/detectors/))
+### Phase 2c — Analysis ([internal/rules/](internal/rules/) + [internal/analysis/detectors/](internal/analysis/detectors/))
 
-Detection is **YAML-driven**. The `internal/analysis/detectors` package now
-owns only the `Detector` interface and the `Registry` runtime; concrete
-detectors are produced by `internal/rules` from embedded YAML policy files.
+Detection is **YAML-driven**. The `internal/analysis/detectors` package owns
+three typed interfaces and the `Registry` runtime; concrete detectors are
+produced by `internal/rules` from embedded YAML policy files.
 
 ```go
-type Detector interface {
+// ToolDetector fires against one ToolDef at a time.
+type ToolDetector interface {
     RuleID() string
     Category() models.DetectorCategory
-    Applies(tool models.ToolDef) bool
-    Detect(tool models.ToolDef, pf analysis.ParsedFile) []models.Finding
-    Singleton() bool
+    Applies(models.ToolDef) bool
+    Detect(models.ToolDef, analysis.ParsedFile, models.RepoInventory) []models.Finding
+}
+
+// AgentDetector fires against one AgentDef at a time.
+type AgentDetector interface {
+    RuleID() string
+    Category() models.DetectorCategory
+    Applies(models.AgentDef) bool
+    Detect(models.AgentDef, models.RepoInventory) []models.Finding
+}
+
+// RepoDetector fires once per scan against the profile + inventory.
+type RepoDetector interface {
+    RuleID() string
+    Category() models.DetectorCategory
+    Applies(models.RepoProfile, models.RepoInventory) bool
+    Detect(models.RepoProfile, models.RepoInventory) []models.Finding
 }
 ```
+
+`Registry.Run(profile, inv, parsed)` iterates all three slices: ToolDetectors
+fire per `inv.Tools`, AgentDetectors per `inv.Agents`, RepoDetectors once.
+Findings are sorted deterministically by `(RuleID, FilePath, Line)`.
 
 Pipeline at startup:
 
@@ -192,38 +230,49 @@ Pipeline at startup:
    `internal/rules/policies/`.
 2. `rules.LoadRegistry(fsys)` walks recursively, decodes every `.yaml` file,
    validates required fields / enums / cross-file rule-ID uniqueness, then
-   wraps each `RuleDef` in a `RuleDetector`.
-3. `RuleDetector.Detect` evaluates the rule's `MatchExpr` against the tool;
-   on a match it emits one `Finding` populated from the rule's metadata.
+   wraps each `RuleDef` as a `ToolRuleDetector`, `AgentRuleDetector`, or
+   `RepoRuleDetector` based on the rule's `scope:` field.
+3. Each detector's `Detect` evaluates the rule's `MatchExpr` against the
+   typed input; on a match it emits one `Finding` populated from the rule's
+   metadata.
 
 Discipline: rule evaluation is pure (no I/O, no clocks); predicates may walk
 the AST. Every `Finding` MUST carry an `Explanation`, `SuggestedFix`, and
 `Confidence` — the YAML schema requires those fields, so the loader rejects a
 rule that omits them.
 
-The `Registry` ([detector.go](internal/analysis/detectors/detector.go))
-supports `Subset(...categories)` for `--detectors` filtering and runs
-detectors in stable order (detector-stable then tool-stable) so output is
-reproducible. `Singleton` detectors fire at most once per scan — used by
-manifest-level checks like `OSH-004` (no resource limits configured) that
-have no per-tool variation.
+The `Registry` supports `Subset(...categories)` for `--detectors` filtering.
+Output is reproducible: detectors run in stable order, findings sorted by
+`(RuleID, FilePath, Line)`.
 
 Shipped rules (one row per YAML rule entry):
 
-| Rule     | Category   | Severity | Source file                             | Notes                                                  |
-| -------- | ---------- | -------- | --------------------------------------- | ------------------------------------------------------ |
-| CSDK-001 | claude_sdk | low      | `claude_sdk/tool_definition.yaml`       | Missing docstring / description                        |
-| CSDK-002 | claude_sdk | medium   | `claude_sdk/tool_definition.yaml`       | Untyped parameters                                     |
-| CSDK-003 | claude_sdk | high     | `claude_sdk/network.yaml`               | HTTP call without `timeout=` kwarg                     |
-| CSDK-004 | claude_sdk | high     | `claude_sdk/path_safety.yaml`           | Path-like param flows to I/O without per-param `.resolve()`/`realpath()` |
-| CSDK-005 | claude_sdk | medium   | `claude_sdk/error_handling.yaml`        | Raises with no try/except wrapping                     |
-| CSDK-006 | claude_sdk | medium   | `claude_sdk/idempotency.yaml`           | Mutating verb in name + no idempotency-key param       |
-| CSDK-007 | claude_sdk | low      | `claude_sdk/tool_definition.yaml`       | Ambiguous name (`process`, `handle`, `run`, …)         |
-| OSH-001  | openshell  | critical | `openshell/shell.yaml`                  | `subprocess(..., shell=True)`                          |
-| OSH-002  | openshell  | high     | `openshell/shell.yaml`                  | Shell call without `ALLOWED_COMMANDS` allowlist        |
-| OSH-003  | openshell  | high     | `openshell/filesystem.yaml`             | `open(..., "w")` / `shutil.move`/`rmtree` etc.         |
-| OSH-004  | openshell  | medium   | `openshell/resources.yaml`              | Singleton: no resource limits configured anywhere      |
-| OSH-005  | openshell  | high     | `openshell/network.yaml`                | HTTP call with dynamic URL + no host allowlist         |
+| Rule    | Scope | Category   | Severity | Source file                              | Notes                                                               |
+| ------- | ----- | ---------- | -------- | ---------------------------------------- | ------------------------------------------------------------------- |
+| CSDK-001 | tool | claude_sdk | low      | `claude_sdk/tool_definition.yaml`        | Missing docstring / description                                     |
+| CSDK-002 | tool | claude_sdk | medium   | `claude_sdk/tool_definition.yaml`        | Untyped parameters                                                  |
+| CSDK-003 | tool | claude_sdk | high     | `claude_sdk/network.yaml`                | HTTP call without `timeout=` kwarg                                  |
+| CSDK-004 | tool | claude_sdk | high     | `claude_sdk/path_safety.yaml`            | Path-like param flows to I/O without `.resolve()`/`realpath()`     |
+| CSDK-005 | tool | claude_sdk | medium   | `claude_sdk/error_handling.yaml`         | Raises with no try/except wrapping                                  |
+| CSDK-006 | tool | claude_sdk | medium   | `claude_sdk/idempotency.yaml`            | Mutating verb in name + no idempotency-key param                    |
+| CSDK-007 | tool | claude_sdk | low      | `claude_sdk/tool_definition.yaml`        | Ambiguous name (`process`, `handle`, `run`, …)                      |
+| OSH-001 | tool  | openshell  | critical | `openshell/shell.yaml`                   | `subprocess(..., shell=True)`                                       |
+| OSH-002 | tool  | openshell  | high     | `openshell/shell.yaml`                   | Shell call without `ALLOWED_COMMANDS` allowlist                     |
+| OSH-003 | tool  | openshell  | high     | `openshell/filesystem.yaml`              | `open(..., "w")` / `shutil.move`/`rmtree` etc.                      |
+| OSH-004 | repo  | openshell  | medium   | `openshell/resources.yaml`               | No resource limits configured anywhere                              |
+| OSH-005 | tool  | openshell  | high     | `openshell/network.yaml`                 | HTTP call with dynamic URL + no host allowlist                      |
+| OAI-001 | tool  | openai_sdk | low      | `openai_sdk/tool_definition.yaml`        | Tool function has no docstring                                      |
+| OAI-002 | tool  | openai_sdk | medium   | `openai_sdk/tool_definition.yaml`        | Tool has no type-annotated parameters                               |
+| OAI-003 | tool  | openai_sdk | medium   | `openai_sdk/decorator_config.yaml`       | `@function_tool(strict_mode=False)` — schema not enforced           |
+| OAI-004 | tool  | openai_sdk | medium   | `openai_sdk/decorator_config.yaml`       | No `failure_error_function` — errors propagate raw to the model     |
+| OAI-005 | tool  | openai_sdk | high     | `openai_sdk/network.yaml`                | HTTP call without `timeout=`                                        |
+| OAI-006 | tool  | openai_sdk | high     | `openai_sdk/path_safety.yaml`            | Path-like param passed to I/O without normalization                 |
+| OAI-101 | agent | openai_sdk | high     | `openai_sdk/agent_safety.yaml`           | Agent with shell tools and no `input_guardrails`                    |
+| OAI-102 | agent | openai_sdk | medium   | `openai_sdk/agent_safety.yaml`           | `tool_use_behavior="stop_on_first_tool"` — agent stops after one tool call |
+| OAI-103 | agent | openai_sdk | high     | `openai_sdk/agent_safety.yaml`           | `tool_choice=required` + `reset_tool_choice=False` — unbounded loop risk |
+| OAI-104 | agent | openai_sdk | high     | `openai_sdk/agent_safety.yaml`           | Bare `Agent` (not `SandboxAgent`) with shell-invoking tools         |
+| OAI-105 | agent | openai_sdk | high     | `openai_sdk/mcp_safety.yaml`             | Agent uses MCP servers without `input_guardrails`                   |
+| OAI-201 | repo  | openai_sdk | medium   | `openai_sdk/tracing.yaml`                | OpenAI Agents SDK present but no custom trace processor configured  |
 
 ### Stage 5 — Scoring ([internal/analysis/scoring.go](internal/analysis/scoring.go))
 
@@ -248,11 +297,9 @@ place so the curve can be tuned without touching detectors.
 Two generators, both deterministic by contract: same findings → byte-identical
 output. The contract is enforced by the generators themselves (sorted tool
 names, sorted findings by `RuleID`, deduped global-deny entries before
-marshaling). There is no dedicated regression test asserting byte-equality —
-the smoke test was refactored to the examples-corpus sweep (see §6), which
-checks "doesn't crash on real-world inputs" rather than artifact stability.
-Adding a focused determinism test is open work; the §7 contract relies on
-generator discipline in the meantime.
+marshaling). `TestScanDeterministic` (see §6 test layer 4) asserts this
+mechanically — a non-deterministic generator is a build failure, not a latent
+bug.
 
 - **Hooks** ([hooks.go](internal/generation/hooks.go)) — emits
   `hooks/pretooluse_validate.py` (per-tool validators behind a dispatch table)
@@ -296,41 +343,81 @@ that crosses ingestion → analysis → generation → review is a typed struct 
 JSON tags, because `ScanResult` is the contract for `--format json` CI output.
 
 ```go
-ScanResult {
-    ScanID             string             // "scan_" + sha256(repo + sorted python file list)[:8] hex (16 chars)
-    Repo               string
-    Manifest           ScanManifest       // what the normalizer found
-    Tools              []ToolDef          // discovery output
-    Findings           []Finding          // detector output
-    Readiness          []ToolReadiness    // per-tool scores
-    OverallScore       float64            // min across tools
-    GeneratedArtifacts []GeneratedArtifact
+// Phase 1 output
+RepoProfile {
+    Languages []Language   // detected by file extension
+    SDKDeps   []SDKDep     // declared deps (from manifests)
+    Manifest  ScanManifest // file inventory + discovered components
+}
+
+SDKDep { Name, Source string; Confidence float64 }
+SDK = "claude_agent_sdk" | "openai_agents" | "mcp" | "openshell"
+
+// Phase 2a output
+RepoInventory {
+    Tools              []ToolDef
+    Agents             []AgentDef
+    Guardrails         []GuardrailDef
+    Sessions           []SessionUse
+    HostedTools        []HostedToolDef
+    SDKsDetected       []SDK     // observed in code (drives Phase 2b policy selection)
+    Manifest           ScanManifest
+    UsesDefaultTracing bool
+}
+
+AgentDef {
+    SDK, Class, FilePath string; Line, EndLine int
+    Name         string         // from name= kwarg literal
+    Kwargs       *KwargTree     // all constructor kwargs, typed
+    ToolRefs     []ToolRef      // resolved to ToolDef or flagged External
+    HandoffRefs  []AgentRef
+    InputGuards  []GuardrailRef
+    OutputGuards []GuardrailRef
+    Opaque       bool           // Agent(**config) or tools=non-literal
+}
+
+// KwargTree holds a kwarg value as either a leaf or a nested map
+// (e.g. model_settings.tool_choice parses as Children["model_settings"].Children["tool_choice"])
+KwargTree { Value *Expr; Children map[string]*KwargTree }
+
+ToolDef {
+    Name           string
+    Kind           ToolKind   // claude_sdk_tool | openai_tool | mcp_tool | shell_invocation | unknown
+    Language       Language   // python | typescript | javascript | go
+    FilePath       string
+    Line, EndLine  int
+    Description    string
+    HasTypedParams bool
+    ParamNames     []string
+    Facts          map[string]string // detector-injected body facts
+    Config         map[string]string // decorator kwargs (e.g. strict_mode, failure_error_function)
 }
 
 ScanManifest {
     RepoRoot, IsRemote, RemoteURL string
     PythonFiles, TypeScriptFiles, JavaScriptFiles []string
     YAMLFiles, JSONFiles, MarkdownFiles []string
-    HasClaudeSDKDependency, HasOpenShellArtifact bool
-    Components []AgentComponent     // discovered non-tool agent artifacts
-}
-
-ToolDef {
-    Name           string
-    Kind           ToolKind          // claude_sdk_tool | openai_tool | mcp_tool | shell_invocation | unknown
-    Language       Language          // python | typescript | javascript | go
-    FilePath, Line, EndLine ...
-    Description    string
-    HasTypedParams bool
-    ParamNames     []string
-    Facts          map[string]string // detector-injected hints
+    HasClaudeSDKDependency, HasOpenShellArtifact bool // legacy convenience flags; prefer RepoProfile.SDKDeps
+    Components []AgentComponent
 }
 
 AgentComponent {
     Kind     ComponentKind  // mcp_config | claude_md | claude_settings | subagent | ...
     Path     string         // forward-slash relative to repo root
     Language Language       // set for code components, empty for configs/prompts
-    Note     string         // optional human-readable hint
+    Note     string
+}
+
+// Top-level output
+ScanResult {
+    ScanID             string
+    Repo               string
+    Manifest           ScanManifest
+    Tools              []ToolDef
+    Findings           []Finding
+    Readiness          []ToolReadiness
+    OverallScore       float64
+    GeneratedArtifacts []GeneratedArtifact
 }
 ```
 
@@ -342,8 +429,11 @@ Discipline rules:
 - `RawSource` was deliberately **not** included on `ToolDef`. Carrying full
   function bodies in memory and then in JSON is wasteful, and the LLM
   enrichment path that would consume them is not yet wired.
-- `Facts map[string]string` on `ToolDef` is reserved for detector-injected
-  hints (e.g., "this function shells out") that downstream stages can read
+- `ToolDef.Config` carries decorator kwargs (`strict_mode`, `failure_error_function`,
+  hosted-tool args) captured at discovery time. Detectors read these fields
+  instead of re-parsing the decorator from inside a rule.
+- `ToolDef.Facts map[string]string` is reserved for detector-injected body
+  facts (e.g., "this function shells out") that downstream stages can read
   without re-walking the AST.
 - `Finding.FixHints map[string]any` carries generator-specific keys (e.g.,
   `"hook": "pretooluse_validate"`, `"policy_emit": "command_allowlist"`,
@@ -388,6 +478,14 @@ internal/
 │       │   ├── path_safety.yaml       CSDK-004
 │       │   ├── error_handling.yaml    CSDK-005
 │       │   └── idempotency.yaml       CSDK-006
+│       ├── openai_sdk/
+│       │   ├── tool_definition.yaml   OAI-001, OAI-002
+│       │   ├── decorator_config.yaml  OAI-003, OAI-004
+│       │   ├── network.yaml           OAI-005
+│       │   ├── path_safety.yaml       OAI-006
+│       │   ├── agent_safety.yaml      OAI-101, OAI-102, OAI-103, OAI-104
+│       │   ├── mcp_safety.yaml        OAI-105
+│       │   └── tracing.yaml           OAI-201
 │       └── openshell/
 │           ├── shell.yaml             OSH-001, OSH-002
 │           ├── filesystem.yaml        OSH-003
@@ -450,7 +548,7 @@ rules:
 
 ### Adding a rule
 
-1. Pick the right category subdirectory (`claude_sdk/` or `openshell/`).
+1. Pick the right category subdirectory (`claude_sdk/`, `openai_sdk/`, or `openshell/`).
 2. Either append to an existing topic file or create a new `<topic>.yaml`
    file — the loader walks recursively so new files are picked up
    automatically by `go:embed`.
@@ -464,6 +562,22 @@ rules:
    [internal/rules/policies_test.go](internal/rules/policies_test.go). The
    `TestPolicyRules_AllRulesCovered` guard fails at build time if a shipped
    rule has no test coverage — this is contract, not best practice.
+
+### §5.1 META findings (engine-emitted, not YAML-driven)
+
+Phase 2b emits up to three engine-level findings before any rule runs. These
+are not backed by YAML policy files; they come from `SelectAndEmitMETA` in the
+scanner.
+
+| ID       | Trigger                                                    | Severity | Intent                                               |
+| -------- | ---------------------------------------------------------- | -------- | ---------------------------------------------------- |
+| META-001 | An SDK is observed in code (`SDKsDetected`) but trustabl has no policy pack for it | info | Honest "unaudited SDK" signal — silence on an unknown SDK is wrong |
+| META-002 | An SDK appears in declared deps (`SDKDeps`) but no code use was observed | info | Dep declared but not used — surfaces drift between manifests and code |
+| META-003 | An `AgentDef` has `Opaque=true` (`Agent(**config)` or `tools=non-literal`) | info | Agent analysis is partial; tool-graph predicates on this agent are unreliable |
+
+META findings use `RuleID = "META-001"` etc. and `Category = ""` (no category
+filter applies to them). They are included in `ScanResult.Findings` and
+emitted in both human and JSON output formats.
 
 ### Evaluator semantics ([evaluator.go](internal/rules/evaluator.go))
 
@@ -537,6 +651,12 @@ Coverage is split across three layers, each with a focused contract:
    on each. It asserts no error and a populated manifest — *not* specific
    findings. The point is regression coverage: weird real-world code
    shouldn't panic the discovery pass.
+4. **Determinism regression** ([determinism_test.go](internal/scanner/determinism_test.go)).
+   `TestScanDeterministic` runs `scanner.Run` twice over
+   `testdata/deterministic-fixture` and asserts that `ScanID` and all
+   `GeneratedArtifact.Contents` are byte-identical across both runs.
+   This enforces the §7 contract mechanically so a non-deterministic
+   generator is a build failure, not a latent bug.
 
 Real-world examples in `examples/` are NOT a controlled fixture and are
 not expected to trigger every rule. Per-rule correctness lives in
@@ -556,6 +676,15 @@ Two invariants are load-bearing for the user-facing experience:
 This matters because users commit the generated files. A non-deterministic
 generator means a user sees spurious diffs on every CI run, which trains them
 to ignore the diff entirely.
+
+The contract is enforced by `TestScanDeterministic` in
+[internal/scanner/determinism_test.go](internal/scanner/determinism_test.go):
+two consecutive `scanner.Run` calls over `testdata/deterministic-fixture` must
+produce identical `ScanID` values and byte-equal `GeneratedArtifact.Contents`
+for every artifact. A new generator that violates this is a build failure.
+
+New generators MUST sort their inputs and deduplicate before emitting. No
+timestamp, no map iteration order, no goroutine scheduling may influence output.
 
 ---
 

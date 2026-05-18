@@ -18,9 +18,9 @@ rules:
       - claude_sdk_tool
       - mcp_tool
     # call_uses_unnormalized_path_param is per-param: a tool with two path
-    # params and one .resolve() correctly fires on the unresolved one. The
-    # simpler call_uses_param suppresses the whole rule whenever any
-    # normalization appears in the body, which masks real exposure.
+    # params and one .resolve() correctly fires on the unresolved one.
+    # A body-wide check would suppress the rule whenever any normalization
+    # appears, masking real exposure on other params.
     match:
       call_uses_unnormalized_path_param:
         callees:

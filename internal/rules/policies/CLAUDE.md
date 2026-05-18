@@ -47,6 +47,43 @@ when omitted. For TypeScript / JavaScript / Go rules, set it explicitly:
 today, so non-python rules will load successfully but never fire until
 the matching parser ships.
 
+## Per-scope `applies_to` values
+
+The `applies_to` list constrains which discovered entities a rule fires
+against. Pick values from the table for the scope you're targeting.
+
+**`scope: tool`** — receives a `ToolDef`; `applies_to` is matched against
+`ToolDef.Kind`:
+
+| `applies_to` value   | Matches                                       |
+| -------------------- | --------------------------------------------- |
+| `openai_tool`        | `@function_tool`-decorated Python function    |
+| `claude_sdk_tool`    | `@tool` / `@claude_tool` / `claude_agent_sdk` |
+| `mcp_tool`           | `@server.tool`, `@mcp.tool`, `.register_tool` |
+| `shell_invocation`   | Bare function that calls `subprocess.*` etc.  |
+
+**`scope: agent`** — receives an `AgentDef`; `applies_to` is matched against
+`AgentDef.Class` + `AgentDef.SDK`:
+
+| `applies_to` value        | Matches                                                       |
+| ------------------------- | ------------------------------------------------------------- |
+| `openai_agent`            | `Agent(...)` from `openai-agents` SDK                         |
+| `openai_sandbox_agent`    | `SandboxAgent(...)` from `openai-agents` SDK                  |
+| `claude_agent_definition` | `AgentDefinition(...)` from `claude-agent-sdk`                |
+
+**`scope: repo`** — receives `RepoProfile` + `RepoInventory`; `applies_to`
+is matched against the SDK names in `RepoInventory.SDKsDetected`:
+
+| `applies_to` value | Matches repos that use               |
+| ------------------ | ------------------------------------ |
+| `openai_agents`    | OpenAI Agents SDK (observed in code) |
+| `claude_agent_sdk` | Claude Agent SDK (observed in code)  |
+| `openshell`        | NVIDIA OpenShell SDK                 |
+
+Always set `applies_to` explicitly — the loader does not infer scope from
+the category. Omitting it would make a rule fire against every entity of
+that scope regardless of SDK, which is almost never correct.
+
 ## "Add a rule for X"
 
 Default sequence:

@@ -405,38 +405,6 @@ def run(name: str) -> str:
 	}
 }
 
-// ─── call_uses_param ──────────────────────────────────────────────────────────
-
-func TestPred_CallUsesParam_True(t *testing.T) {
-	tool, pf := parsePy(t, `
-def read_file(file_path: str) -> str:
-    """Read a file."""
-    with open(file_path, "r") as f:
-        return f.read()
-`, models.KindClaudeSDKTool)
-	expr := rules.CallUsesParamExpr{
-		Callees:        []string{"open", "Path"},
-		CalleePrefixes: []string{"os.", "shutil."},
-	}
-	if !rules.PredCallUsesParam(expr, tool, pf) {
-		t.Error("expected CallUsesParam true")
-	}
-}
-
-func TestPred_CallUsesParam_False_NoPathishParam(t *testing.T) {
-	tool, pf := parsePy(t, `
-def get_editor(editor_id: str) -> dict:
-    """Get editor."""
-    return {"id": editor_id}
-`, models.KindClaudeSDKTool)
-	expr := rules.CallUsesParamExpr{
-		Callees: []string{"open"},
-	}
-	if rules.PredCallUsesParam(expr, tool, pf) {
-		t.Error("expected CallUsesParam false: 'editor_id' is not path-like")
-	}
-}
-
 // ─── tool decorator predicates ────────────────────────────────────────────────
 
 func TestPredToolDecoratorKwargValue(t *testing.T) {

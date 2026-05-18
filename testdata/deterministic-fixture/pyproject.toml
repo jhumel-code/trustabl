@@ -1,0 +1,4 @@
+[project]
+name = "deterministic-fixture"
+version = "0.0.1"
+dependencies = ["openai-agents>=0.0.1"]

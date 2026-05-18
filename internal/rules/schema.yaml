@@ -197,22 +197,8 @@ rules:
 #       value:         "True"            REQUIRED. Literal text — quote bool/None.
 #
 #
-#   call_uses_param:
-#       Body-wide path-flow check. Fires when ANY pathish param flows into
-#       a matching call AND .resolve()/realpath() does NOT appear anywhere
-#       in the body. COARSE: a single body-wide normalization suppresses the
-#       rule even if some other param is unresolved.
-#
-#       callees:         [open, Path]    OPTIONAL. Exact-match callees.
-#       callee_prefixes: [shutil., os.]  OPTIONAL. Prefix-match callees.
-#
-#       "Pathish" parameters are determined by analysis.IsPathishParam:
-#       names like path/file/dir, suffixes _path/_file/_dir/_directory,
-#       prefixes file_/path_. Word-boundary; `editor_id` does not match.
-#
-#
 #   call_uses_unnormalized_path_param:
-#       Per-param path-flow check. Like call_uses_param, but tracks WHICH
+#       Per-param path-flow check. Fires only on params that flow into a
 #       params have been normalized — fires only on params that flow into a
 #       matching call AND have NOT been .resolve()'d / realpath()'d in the
 #       same function. PREFER THIS over call_uses_param for path-safety

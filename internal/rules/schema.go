@@ -61,8 +61,7 @@ type MatchExpr struct {
 	ParamNameMatches              *ParamNameMatchExpr                 `yaml:"param_name_matches,omitempty"`
 	CallWithoutKwarg              *CallWithoutKwargExpr               `yaml:"call_without_kwarg,omitempty"`
 	CallWithKwargValue            *CallWithKwargValueExpr             `yaml:"call_with_kwarg_value,omitempty"`
-	CallUsesParam                 *CallUsesParamExpr                  `yaml:"call_uses_param,omitempty"`
-	CallUsesUnnormalizedPathParam *CallUsesUnnormalizedPathParamExpr  `yaml:"call_uses_unnormalized_path_param,omitempty"`
+	CallUsesUnnormalizedPathParam *CallUsesUnnormalizedPathParamExpr `yaml:"call_uses_unnormalized_path_param,omitempty"`
 
 	// Tool-scope decorator predicates
 	ToolDecoratorKwargValue   *ToolDecoratorKwargValueExpr `yaml:"tool_decorator_kwarg_value,omitempty"`
@@ -118,14 +117,6 @@ type CallWithKwargValueExpr struct {
 	Callees      []string `yaml:"callees,omitempty"`
 	Kwarg        string   `yaml:"kwarg"`
 	Value        string   `yaml:"value"`
-}
-
-// CallUsesParamExpr fires when a matching call receives a path-like param as an arg.
-// Body-wide check: if .resolve()/realpath() appears anywhere, the rule is
-// suppressed entirely. For per-param fidelity use CallUsesUnnormalizedPathParamExpr.
-type CallUsesParamExpr struct {
-	Callees        []string `yaml:"callees,omitempty"`
-	CalleePrefixes []string `yaml:"callee_prefixes,omitempty"`
 }
 
 // CallUsesUnnormalizedPathParamExpr fires when a path-like param flows to an

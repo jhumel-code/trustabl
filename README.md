@@ -22,15 +22,15 @@ extracted from them. The rule schema's `language:` field is in place for
 multi-language rule sets when those parsers ship. See
 [ARCHITECTURE.md § 1.1](ARCHITECTURE.md#11-language-scope).
 
-**SDK coverage.** Tool-decorator discovery currently recognizes Claude Agent
-SDK (`@tool`, `@claude_tool`, `claude_agent_sdk`), OpenAI Agents SDK
+**SDK coverage.** Tool-decorator discovery recognizes Claude Agent SDK
+(`@tool`, `@claude_tool`, `claude_agent_sdk`), OpenAI Agents SDK
 (`@function_tool`), and MCP server registrations (`@server.tool`,
-`@mcp.tool`, `.register_tool`). Shipped detection rules in
-`internal/rules/policies/claude_sdk/` are scoped to Claude Agent SDK
-specifically — their `explanation` and `fix` text references SDK-specific
-mechanisms. OpenAI Agents SDK tools are discovered (`kind: openai_tool`)
-and listed in `manifest.tools`, but no OpenAI-framed rules are shipped yet
-— author them in `internal/rules/policies/openai_sdk/` when needed.
+`@mcp.tool`, `.register_tool`). Shipped detection rules live in
+`internal/rules/policies/claude_sdk/` (CSDK-001–007), `openai_sdk/`
+(OAI-001–201), and `openshell/` (OSH-001–005); each pack's `explanation`
+and `fix` text is scoped to the SDK it targets. Each SDK's agents are
+discovered separately (`kind: openai_agent` vs `claude_agent_definition`)
+and checked only against the rules for that SDK — no cross-SDK casting.
 
 **Test contract.** The `examples/` directory holds real-world agent code
 (Claude SDK demos, OpenAI Agents SDK demos, etc.). It is a corpus, not a
@@ -132,30 +132,60 @@ The generated artifacts get committed to the user's repo:
 | Exporter          | `internal/review/export.go`              |
 | Inference Router  | `internal/inference/router.go` (stub)    |
 
-## Detectors shipped in this skeleton
+## Detectors shipped
 
-Naming: `CSDK-NNN` for Claude SDK reliability, `OSH-NNN` for OpenShell policy.
-Rules are defined as YAML in `internal/rules/policies/<category>/<topic>.yaml`
-and embedded into the binary via `go:embed`. To add a rule, drop a new YAML
-entry; no Go code change is required unless the rule needs a new predicate
-primitive (see [ARCHITECTURE.md § 5](ARCHITECTURE.md#5-the-rules-engine-schema-evaluator-embed)).
+Naming: `CSDK-NNN` for Claude Agent SDK reliability, `OAI-NNN` for OpenAI
+Agents SDK, `OSH-NNN` for OpenShell policy. Rules are defined as YAML in
+`internal/rules/policies/<category>/<topic>.yaml` and embedded into the binary
+via `go:embed`. To add a rule, drop a new YAML entry; no Go code change is
+required unless the rule needs a new predicate primitive (see
+[ARCHITECTURE.md § 5](ARCHITECTURE.md#5-the-rules-engine-schema-evaluator-embed)).
 
-| Rule     | Title                                              | Severity | Source file                       |
-| -------- | -------------------------------------------------- | -------- | --------------------------------- |
-| CSDK-001 | Tool function has no docstring / description       | low      | `claude_sdk/tool_definition.yaml` |
-| CSDK-002 | Tool function has no type-annotated params         | medium   | `claude_sdk/tool_definition.yaml` |
-| CSDK-003 | Tool performs network I/O without timeout          | high     | `claude_sdk/network.yaml`         |
-| CSDK-004 | Tool accepts user-supplied path without validation | high     | `claude_sdk/path_safety.yaml`     |
-| CSDK-005 | Tool raises raw exceptions (no error contract)     | medium   | `claude_sdk/error_handling.yaml`  |
-| CSDK-006 | Tool with side-effects has no idempotency hint     | medium   | `claude_sdk/idempotency.yaml`     |
-| CSDK-007 | Ambiguous tool name (`process`, `handle`, ...)     | low      | `claude_sdk/tool_definition.yaml` |
-| OSH-001  | `subprocess` call with `shell=True`                | critical | `openshell/shell.yaml`            |
-| OSH-002  | Shell tool without allowed-command list            | high     | `openshell/shell.yaml`            |
-| OSH-003  | Filesystem write without path restriction          | high     | `openshell/filesystem.yaml`       |
-| OSH-004  | No resource limits configured                      | medium   | `openshell/resources.yaml`        |
-| OSH-005  | Broad network egress (no host allowlist)           | high     | `openshell/network.yaml`          |
+**Claude Agent SDK (tool scope)**
 
-This is 12 detectors against the architecture's "15 reliability checks" headline.
-Three more are easy adds once corpus data tells you which patterns produce
-real findings vs false positives. Resist the urge to ship more rules without
-that data.
+| Rule     | Title                                              | Severity |
+| -------- | -------------------------------------------------- | -------- |
+| CSDK-001 | Tool function has no docstring / description       | low      |
+| CSDK-002 | Tool function has no type-annotated params         | medium   |
+| CSDK-003 | Tool performs network I/O without timeout          | high     |
+| CSDK-004 | Tool accepts user-supplied path without validation | high     |
+| CSDK-005 | Tool raises raw exceptions (no error contract)     | medium   |
+| CSDK-006 | Tool with side-effects has no idempotency hint     | medium   |
+| CSDK-007 | Ambiguous tool name (`process`, `handle`, ...)     | low      |
+
+**OpenAI Agents SDK (tool scope)**
+
+| Rule    | Title                                                  | Severity |
+| ------- | ------------------------------------------------------ | -------- |
+| OAI-001 | Tool function has no docstring                         | low      |
+| OAI-002 | Tool has no type-annotated parameters                  | medium   |
+| OAI-003 | `@function_tool(strict_mode=False)` — schema not enforced | medium |
+| OAI-004 | No `failure_error_function` — errors propagate raw     | medium   |
+| OAI-005 | HTTP call without `timeout=`                           | high     |
+| OAI-006 | Path-like param passed to I/O without normalization    | high     |
+
+**OpenAI Agents SDK (agent scope)**
+
+| Rule    | Title                                                         | Severity |
+| ------- | ------------------------------------------------------------- | -------- |
+| OAI-101 | Agent with shell tools and no `input_guardrails`              | high     |
+| OAI-102 | `tool_use_behavior="stop_on_first_tool"` — stops after one call | medium |
+| OAI-103 | `tool_choice=required` + `reset_tool_choice=False` — loop risk | high   |
+| OAI-104 | Bare `Agent` (not `SandboxAgent`) with shell-invoking tools   | high     |
+| OAI-105 | Agent uses MCP servers without `input_guardrails`             | high     |
+
+**OpenAI Agents SDK (repo scope)**
+
+| Rule    | Title                                                | Severity |
+| ------- | ---------------------------------------------------- | -------- |
+| OAI-201 | No custom trace processor configured                 | medium   |
+
+**OpenShell**
+
+| Rule    | Title                                              | Severity |
+| ------- | -------------------------------------------------- | -------- |
+| OSH-001 | `subprocess` call with `shell=True`                | critical |
+| OSH-002 | Shell tool without allowed-command list            | high     |
+| OSH-003 | Filesystem write without path restriction          | high     |
+| OSH-004 | No resource limits configured (repo scope)         | medium   |
+| OSH-005 | Broad network egress (no host allowlist)           | high     |

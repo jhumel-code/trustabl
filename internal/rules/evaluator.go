@@ -190,9 +190,6 @@ func (e MatchExpr) EvaluateTool(t models.ToolDef, pf analysis.ParsedFile) bool {
 	if e.CallWithKwargValue != nil && !PredCallWithKwargValue(*e.CallWithKwargValue, t, pf) {
 		return false
 	}
-	if e.CallUsesParam != nil && !PredCallUsesParam(*e.CallUsesParam, t, pf) {
-		return false
-	}
 	if e.CallUsesUnnormalizedPathParam != nil && !PredCallUsesUnnormalizedPathParam(*e.CallUsesUnnormalizedPathParam, t, pf) {
 		return false
 	}
