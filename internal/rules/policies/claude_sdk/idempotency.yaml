@@ -10,6 +10,7 @@ policy:
 rules:
   - id: CSDK-006
     title: Mutating tool has no idempotency key
+    scope: tool
     severity: medium
     confidence: 0.55
     language: python

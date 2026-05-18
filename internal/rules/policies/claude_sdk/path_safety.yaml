@@ -10,6 +10,7 @@ policy:
 rules:
   - id: CSDK-004
     title: Path parameter used in I/O without validation
+    scope: tool
     severity: high
     confidence: 0.7
     language: python

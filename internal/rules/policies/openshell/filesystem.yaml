@@ -9,6 +9,7 @@ policy:
 rules:
   - id: OSH-003
     title: Filesystem write without sandbox restriction
+    scope: tool
     severity: high
     confidence: 0.8
     language: python

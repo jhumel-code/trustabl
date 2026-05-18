@@ -204,14 +204,15 @@ def read_output(name: str) -> str:
         return f.read()
 `, false},
 
-	// ─── OSH-004 no resource limits (singleton, vacuous match) ──────────────
-	// OSH-004 fires once per scan against any applicable tool. Verify it
-	// fires on a generic Claude SDK tool.
-	{"OSH-004 fires on any agent surface", "OSH-004", models.KindClaudeSDKTool, `
+	// ─── OSH-004 no resource limits (repo-scoped) ───────────────────────────
+	// OSH-004 is scope:repo and applies_to:[openshell], so it never applies
+	// to an individual tool. The repo-scoped test driver (Task 45) covers it
+	// at the registry level; here we just satisfy AllRulesCovered.
+	{"OSH-004 does not apply to a tool", "OSH-004", models.KindClaudeSDKTool, `
 def some_tool(x: str) -> str:
     """Does something."""
     return x
-`, true},
+`, false},
 
 	// ─── OSH-005 broad network egress ───────────────────────────────────────
 	{"OSH-005 fires on dynamic URL", "OSH-005", models.KindClaudeSDKTool, `

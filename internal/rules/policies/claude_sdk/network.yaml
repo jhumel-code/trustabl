@@ -10,6 +10,7 @@ policy:
 rules:
   - id: CSDK-003
     title: Network call has no timeout
+    scope: tool
     severity: high
     confidence: 0.85
     language: python

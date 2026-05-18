@@ -10,6 +10,7 @@ policy:
 rules:
   - id: OSH-005
     title: Network egress is unrestricted
+    scope: tool
     severity: high
     confidence: 0.7
     language: python
