@@ -22,6 +22,7 @@ type PolicyMeta struct {
 type RuleDef struct {
 	ID          string                  `yaml:"id"`
 	Title       string                  `yaml:"title"`
+	Scope       models.Scope            `yaml:"scope"`
 	Severity    models.Severity         `yaml:"severity"`
 	Confidence  float64                 `yaml:"confidence"`
 	Language    models.Language         `yaml:"language,omitempty"`

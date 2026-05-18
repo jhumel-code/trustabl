@@ -5,6 +5,24 @@
 // emitted for CI piping (--format json).
 package models
 
+// Scope classifies a rule by the kind of entity it fires against.
+type Scope string
+
+const (
+	ScopeTool  Scope = "tool"
+	ScopeAgent Scope = "agent"
+	ScopeRepo  Scope = "repo"
+)
+
+// ValidScope reports whether s is a known scope value.
+func ValidScope(s Scope) bool {
+	switch s {
+	case ScopeTool, ScopeAgent, ScopeRepo:
+		return true
+	}
+	return false
+}
+
 type Severity string
 
 const (
