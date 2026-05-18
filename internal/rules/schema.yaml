@@ -28,7 +28,8 @@ policy:
 
   name: Network call hygiene                # REQUIRED. Human title. Reserved for future UX surfaces.
 
-  category: claude_sdk                      # REQUIRED. Allowed: claude_sdk | openshell.
+  category: claude_sdk                      # REQUIRED. Allowed: claude_sdk | openshell |
+                                            #   openai_sdk | mcp | catalog.
                                             # Inherited by every rule in this file.
 
   description: >                            # REQUIRED. Multi-line ok. Describe the policy's intent.
@@ -62,6 +63,8 @@ rules:
     applies_to:                             # REQUIRED. Non-empty list of ToolKind strings:
       - claude_sdk_tool                     #   claude_sdk_tool   — @tool / @claude_tool / claude_agent_sdk
       - mcp_tool                            #   mcp_tool          — @server.tool / @mcp.tool / .register_tool
+                                            #   openai_tool       — @function_tool (OpenAI Agents SDK)
+                                            #   google_adk_tool   — @adk.tool / @genai.tool (Google ADK)
                                             #   shell_invocation  — bare functions calling subprocess.* / os.system
                                             #   unknown           — fallback; rarely useful
 
@@ -154,6 +157,15 @@ rules:
 #       sparingly — substring matching is brittle vs AST-based predicates.
 #       Useful when you need to detect a known constant by name.
 #
+#   capability_class_in: [class, class, ...]
+#       Fires when the tool's CapabilityClass (populated by the catalog
+#       enrichment step in scanner.Run) matches any listed value. Returns
+#       false for tools the embedded catalog did not classify.
+#       Values: code_execution | shell_execution | file_read | file_write |
+#         network_read | network_write | agent_spawn | memory_write |
+#         data_query | data_mutate | auth_action | computer_use | external_api
+#
+
 #
 # ━━━ NESTED STRUCT PREDICATES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 #

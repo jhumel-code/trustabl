@@ -1,0 +1,325 @@
+policy:
+  id: catalog_capability_class
+  name: Capability-class safety rules
+  category: catalog
+  description: >
+    Cross-framework rules that fire based on a tool's capability class from
+    the embedded tool catalog. These apply regardless of which SDK decorated
+    the tool — the risk pattern is the same whether it is Claude SDK, OpenAI
+    Agents SDK, LangChain, or any other framework.
+
+rules:
+  - id: CATL-001
+    title: Code execution tool has no sandbox guard
+    severity: critical
+    confidence: 0.8
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+      - shell_invocation
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - code_execution
+        - not:
+            has_body_text:
+              - sandbox
+              - restrict
+              - jail
+              - seccomp
+              - nsjail
+    explanation: >
+      The tool is classified as a code execution surface (it runs user-supplied
+      code or a REPL). Without a sandbox guard in the function body there is no
+      in-process defense against malicious payloads: a model-supplied
+      `__import__("os").system("rm -rf /")` executes with the tool's full
+      privileges. OpenShell can constrain the process at the OS level, but an
+      explicit in-code sandbox check is a required second layer.
+    fix: >
+      Wrap execution inside a sandbox (e.g. nsjail, seccomp, RestrictedPython,
+      or a container). Assert that the code string is safe before execution;
+      never exec model-supplied strings without restriction.
+    fix_hints:
+      policy_action: deny_code_exec
+
+  - id: CATL-002
+    title: Shell execution tool has no command allowlist
+    severity: critical
+    confidence: 0.8
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+      - shell_invocation
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - shell_execution
+        - not:
+            has_body_text:
+              - ALLOWED_COMMANDS
+              - allowlist
+              - ALLOWED_CMDS
+              - allowed_commands
+    explanation: >
+      The tool is classified as a shell execution surface and contains no
+      command allowlist. Even without shell=True, an unconstrained argv[0]
+      lets the model invoke any installed binary. The OpenShell sandbox can
+      enforce an allowlist at the OS layer, but the code should also define
+      one explicitly so the policy can be derived from it.
+    fix: >
+      Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before
+      invoking subprocess. The generated OpenShell policy will include a
+      matching command allowlist.
+    fix_hints:
+      policy_emit: command_allowlist
+
+  - id: CATL-003
+    title: File write tool has no path validation
+    severity: high
+    confidence: 0.75
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+      - shell_invocation
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - file_write
+        - call_uses_unnormalized_path_param:
+            callees:
+              - open
+              - Path
+            callee_prefixes:
+              - shutil.
+              - os.
+    explanation: >
+      The tool is classified as a file write surface and passes a path-like
+      parameter to a file operation without resolving it first. A
+      model-supplied `../../etc/cron.d/backdoor` reaches real filesystem
+      state. Path traversal is one of the most reliable exploitation paths
+      in agent tools.
+    fix: >
+      Resolve the path with `Path(...).resolve()` and assert it falls under
+      an allowed working directory before writing.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: path_under_root
+
+  - id: CATL-004
+    title: Agent spawn tool has no privilege scoping guard
+    severity: high
+    confidence: 0.7
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - agent_spawn
+        - not:
+            has_body_text:
+              - allowed_tools
+              - tool_choice
+              - permissions
+              - scope
+    explanation: >
+      The tool spawns or delegates to a subagent and passes no tool scoping
+      or permission restrictions to it. A subagent that inherits its parent's
+      full tool set is a privilege escalation path — a prompt injection in the
+      subagent's context can invoke tools the orchestrator would not have
+      called directly.
+    fix: >
+      Pass an explicit `allowed_tools` list when creating the subagent. Grant
+      only the minimal tool set required for the delegated task.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: subagent_tool_scope
+
+  - id: CATL-005
+    title: Auth tool has no secure credential handling
+    severity: high
+    confidence: 0.7
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - auth_action
+        - not:
+            has_body_text:
+              - vault
+              - keyring
+              - secret
+              - secure
+              - getenv
+              - environ
+    explanation: >
+      The tool handles authentication or credential acquisition and does not
+      reference a secrets manager, keyring, or environment variable. This
+      suggests credentials may be hardcoded, logged, or returned to the model
+      in plaintext — all of which are credential exposure vectors.
+    fix: >
+      Load credentials exclusively from environment variables or a secrets
+      manager (e.g. HashiCorp Vault, AWS Secrets Manager). Never hardcode
+      credentials or return them to the model.
+    fix_hints:
+      hook: posttooluse_log
+      guard: redact_credentials
+
+  - id: CATL-006
+    title: Computer use tool has no confirmation gate
+    severity: critical
+    confidence: 0.75
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - computer_use
+        - not:
+            has_body_text:
+              - confirm
+              - approve
+              - checkpoint
+              - human_in_the_loop
+              - require_approval
+    explanation: >
+      The tool controls a desktop GUI or browser and contains no human
+      confirmation gate. Computer use tools can take irreversible actions
+      (submitting forms, clicking purchase buttons, deleting accounts) that
+      are impossible to roll back if the model misinterprets the user's intent.
+    fix: >
+      Add a confirmation checkpoint before any irreversible UI action. At
+      minimum, log the intended action and require explicit approval before
+      executing it.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: require_human_approval
+
+  - id: CATL-007
+    title: Data mutation tool has no dry-run or rollback support
+    severity: medium
+    confidence: 0.65
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - data_mutate
+        - not:
+            has_body_text:
+              - dry_run
+              - rollback
+              - transaction
+              - savepoint
+              - BEGIN
+    explanation: >
+      The tool mutates database state and contains no dry-run mode, rollback
+      mechanism, or transaction boundary. Agents retry tool calls on timeout;
+      without a rollback path, a partially-applied mutation from a failed retry
+      can leave data in an inconsistent state.
+    fix: >
+      Wrap mutations in a database transaction. Expose a `dry_run: bool`
+      parameter so callers can preview the effect without committing.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: dry_run_check
+
+  - id: CATL-008
+    title: External API tool has no rate limit guard
+    severity: medium
+    confidence: 0.6
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - external_api
+        - not:
+            has_body_text:
+              - rate_limit
+              - backoff
+              - retry
+              - throttle
+              - sleep
+    explanation: >
+      The tool calls an external API (email, Slack, payment, etc.) and
+      contains no rate limit guard or retry backoff. Agents can call tools
+      in rapid loops; without throttling, a runaway agent can exhaust API
+      quotas, incur unexpected costs, or trigger abuse blocks.
+    fix: >
+      Add exponential backoff with jitter on retries. Enforce a per-run
+      call budget and surface a structured error when the limit is reached.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: rate_limit_check
+
+  - id: CATL-009
+    title: Memory write tool has no size or scope limit
+    severity: low
+    confidence: 0.6
+    language: python
+    applies_to:
+      - claude_sdk_tool
+      - openai_tool
+      - mcp_tool
+      - google_adk_tool
+    singleton: false
+    match:
+      all:
+        - capability_class_in:
+            - memory_write
+        - not:
+            has_body_text:
+              - max_size
+              - limit
+              - scope
+              - max_tokens
+              - truncate
+    explanation: >
+      The tool writes to long-term memory or a vector store and enforces no
+      size or scope limit. An unconstrained memory writer lets the model
+      accumulate unbounded data across sessions, inflating retrieval costs
+      and potentially leaking cross-user data if the scope is shared.
+    fix: >
+      Enforce a maximum entry size and a per-user or per-session scope
+      boundary. Reject writes that exceed limits with a structured error.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: memory_scope_limit

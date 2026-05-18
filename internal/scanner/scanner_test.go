@@ -29,9 +29,18 @@ func TestScanSampleAgent(t *testing.T) {
 
 	// Every rule we ship should fire at least once on this fixture.
 	expectedRules := []string{
+		// Claude Agent SDK
 		"CSDK-001", "CSDK-002", "CSDK-003", "CSDK-004", "CSDK-005",
 		"CSDK-006", "CSDK-007",
+		// OpenShell
 		"OSH-001", "OSH-002", "OSH-003", "OSH-004", "OSH-005",
+		// OpenAI Agents SDK
+		"OAIS-001", "OAIS-002", "OAIS-005", "OAIS-006", "OAIS-007",
+		// MCP
+		"MCP-001", "MCP-002", "MCP-003",
+		// Catalog capability-class rules
+		"CATL-001", "CATL-002", "CATL-003", "CATL-004", "CATL-005",
+		"CATL-006", "CATL-007", "CATL-008", "CATL-009",
 	}
 	seen := map[string]bool{}
 	for _, f := range result.Findings {

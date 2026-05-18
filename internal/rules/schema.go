@@ -53,9 +53,10 @@ type MatchExpr struct {
 	Always            *bool `yaml:"always,omitempty"`
 
 	// String-list predicates
-	NameIn        []string `yaml:"name_in,omitempty"`
-	NameHasPrefix []string `yaml:"name_has_prefix,omitempty"`
-	HasBodyText   []string `yaml:"has_body_text,omitempty"`
+	NameIn            []string `yaml:"name_in,omitempty"`
+	NameHasPrefix     []string `yaml:"name_has_prefix,omitempty"`
+	HasBodyText       []string `yaml:"has_body_text,omitempty"`
+	CapabilityClassIn []string `yaml:"capability_class_in,omitempty"`
 
 	// Nested struct predicates
 	ParamNameMatches              *ParamNameMatchExpr                 `yaml:"param_name_matches,omitempty"`

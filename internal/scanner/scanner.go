@@ -14,6 +14,7 @@ import (
 	"strings"
 
 	"github.com/trustabl/karenctl/internal/analysis"
+	"github.com/trustabl/karenctl/internal/catalog"
 	"github.com/trustabl/karenctl/internal/generation"
 	"github.com/trustabl/karenctl/internal/ingestion"
 	"github.com/trustabl/karenctl/internal/models"
@@ -44,6 +45,15 @@ func Run(cfg Config) (models.ScanResult, error) {
 	tools, parsed, err := analysis.DiscoverTools(manifest)
 	if err != nil {
 		return models.ScanResult{}, fmt.Errorf("discover: %w", err)
+	}
+
+	// Catalog enrichment: classify each tool by capability class so that
+	// catalog/ policy rules can use capability_class_in predicates.
+	// A missing or malformed catalog is non-fatal — tools just won't be classified.
+	if cat, catErr := catalog.DefaultCatalog(); catErr == nil {
+		for i := range tools {
+			tools[i].CapabilityClass = string(cat.Lookup(tools[i].Name))
+		}
 	}
 
 	registry, err := rules.LoadRegistry(rules.DefaultFS())

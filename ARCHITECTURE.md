@@ -140,11 +140,13 @@ Two-pass discovery over each Python file. tree-sitter is used because we need
 structural recognition (decorator nodes, function bodies, call shapes) rather
 than just text matching.
 
-1. **Decorated functions.** Any `decorated_definition` whose decorator text
-   contains `@tool`, `@claude_tool`, `@agent.tool`, `claude_agent_sdk` is a
-   `KindClaudeSDKTool`. `@server.tool`, `@mcp.tool`, `.register_tool` is a
-   `KindMCPTool`. These signals are conservative — when in doubt, return
-   `KindUnknown` and let the function be considered for shell discovery.
+1. **Decorated functions.** Decorator text is inspected in priority order to
+   avoid misclassification:
+   - `@function_tool` → `KindOpenAITool` (OpenAI Agents SDK)
+   - `@adk.tool`, `@genai.tool`, `google.adk` → `KindGoogleADKTool` (Google ADK)
+   - `@tool`, `@claude_tool`, `@agent.tool`, `claude_agent_sdk` → `KindClaudeSDKTool`
+   - `@server.tool`, `@mcp.tool`, `.register_tool` → `KindMCPTool`
+   - Anything else → `KindUnknown` (eligible for shell discovery below)
 2. **Bare functions that shell out.** Any `function_definition` not already
    captured above whose body calls `subprocess.*`, `os.system`, or `os.popen`
    is a `KindShellInvocation`. These feed the OpenShell detectors.
@@ -200,8 +202,8 @@ Shipped rules (one row per YAML rule entry):
 | -------- | ---------- | -------- | --------------------------------------- | ------------------------------------------------------ |
 | CSDK-001 | claude_sdk | low      | `claude_sdk/tool_definition.yaml`       | Missing docstring / description                        |
 | CSDK-002 | claude_sdk | medium   | `claude_sdk/tool_definition.yaml`       | Untyped parameters                                     |
-| CSDK-003 | claude_sdk | high     | `claude_sdk/network.yaml`               | HTTP call without `timeout=` kwarg                     |
-| CSDK-004 | claude_sdk | high     | `claude_sdk/path_safety.yaml`           | Path-like param flows to I/O without per-param `.resolve()`/`realpath()` |
+| CSDK-003 | claude_sdk | high     | `claude_sdk/network.yaml`               | HTTP call without `timeout=` kwarg (also fires on openai_tool) |
+| CSDK-004 | claude_sdk | high     | `claude_sdk/path_safety.yaml`           | Path-like param flows to I/O without per-param `.resolve()`/`realpath()` (also openai_tool) |
 | CSDK-005 | claude_sdk | medium   | `claude_sdk/error_handling.yaml`        | Raises with no try/except wrapping                     |
 | CSDK-006 | claude_sdk | medium   | `claude_sdk/idempotency.yaml`           | Mutating verb in name + no idempotency-key param       |
 | CSDK-007 | claude_sdk | low      | `claude_sdk/tool_definition.yaml`       | Ambiguous name (`process`, `handle`, `run`, …)         |
@@ -210,6 +212,23 @@ Shipped rules (one row per YAML rule entry):
 | OSH-003  | openshell  | high     | `openshell/filesystem.yaml`             | `open(..., "w")` / `shutil.move`/`rmtree` etc.         |
 | OSH-004  | openshell  | medium   | `openshell/resources.yaml`              | Singleton: no resource limits configured anywhere      |
 | OSH-005  | openshell  | high     | `openshell/network.yaml`                | HTTP call with dynamic URL + no host allowlist         |
+| OAIS-001 | openai_sdk | low      | `openai_sdk/tool_definition.yaml`       | OpenAI @function_tool missing docstring                |
+| OAIS-002 | openai_sdk | medium   | `openai_sdk/tool_definition.yaml`       | OpenAI @function_tool untyped parameters               |
+| OAIS-005 | openai_sdk | medium   | `openai_sdk/error_handling.yaml`        | OpenAI @function_tool raises without try/except        |
+| OAIS-006 | openai_sdk | medium   | `openai_sdk/idempotency.yaml`           | OpenAI @function_tool mutating verb + no idempotency key |
+| OAIS-007 | openai_sdk | low      | `openai_sdk/tool_definition.yaml`       | OpenAI @function_tool ambiguous name                   |
+| MCP-001  | mcp        | high     | `mcp/injection.yaml`                    | MCP tool accepts injection-prone param names (cmd, command, exec) |
+| MCP-002  | mcp        | critical | `mcp/injection.yaml`                    | MCP tool contains eval()/exec()/compile() call         |
+| MCP-003  | mcp        | critical | `mcp/injection.yaml`                    | MCP tool uses pickle.loads / marshal.loads             |
+| CATL-001 | catalog    | critical | `catalog/capability_class.yaml`         | Code execution tool has no sandbox guard               |
+| CATL-002 | catalog    | critical | `catalog/capability_class.yaml`         | Shell execution tool has no command allowlist          |
+| CATL-003 | catalog    | high     | `catalog/capability_class.yaml`         | File write tool has no path validation                 |
+| CATL-004 | catalog    | high     | `catalog/capability_class.yaml`         | Agent spawn tool has no privilege scoping              |
+| CATL-005 | catalog    | high     | `catalog/capability_class.yaml`         | Auth tool has no secure credential handling            |
+| CATL-006 | catalog    | critical | `catalog/capability_class.yaml`         | Computer use tool has no confirmation gate             |
+| CATL-007 | catalog    | medium   | `catalog/capability_class.yaml`         | Data mutation tool has no dry-run or rollback          |
+| CATL-008 | catalog    | medium   | `catalog/capability_class.yaml`         | External API tool has no rate limit guard              |
+| CATL-009 | catalog    | low      | `catalog/capability_class.yaml`         | Memory write tool has no size or scope limit           |
 
 ### Stage 5 — Scoring ([internal/analysis/scoring.go](internal/analysis/scoring.go))
 
@@ -344,13 +363,19 @@ Discipline rules:
 cmd/karenctl/                    CLI entry point (cobra). main.go only.
 internal/
 ├── models/                      Cross-boundary types. JSON-tagged. Zero deps.
+├── catalog/                     Embedded tool catalog: name → capability class.
+│   ├── catalog.go               CapabilityClass constants, Catalog, Lookup.
+│   ├── embed.go                 //go:embed tools_catalog.yaml.
+│   └── tools_catalog.yaml       Curated seed (~80 entries). Use
+│                                tools/gather_tools.py to grow it.
 ├── ingestion/                   Importer + Normalizer.
 ├── analysis/
 │   ├── astutil/                 Tiny tree-sitter ergonomic layer (NodeText,
 │   │                            Walk, FindAll, FunctionName, FunctionParams,
 │   │                            FunctionDocstring, FunctionHasTypedParams,
 │   │                            HasKwarg).
-│   ├── discovery.go             Tool discovery passes.
+│   ├── discovery.go             Tool discovery passes (Python; decorator
+│   │                            priority: @function_tool > @adk.tool > @tool > @server.tool).
 │   ├── heuristics.go            Domain helpers shared by every detector path:
 │   │                            FindFunctionNode, IsHTTPCall, IsPathishParam.
 │   ├── scoring.go               Per-tool + overall scoring.
@@ -366,10 +391,18 @@ internal/
 │   └── policies/                Embedded YAML rule definitions.
 │       ├── claude_sdk/
 │       │   ├── tool_definition.yaml   CSDK-001, CSDK-002, CSDK-007
-│       │   ├── network.yaml           CSDK-003
-│       │   ├── path_safety.yaml       CSDK-004
+│       │   ├── network.yaml           CSDK-003 (fires on openai_tool too)
+│       │   ├── path_safety.yaml       CSDK-004 (fires on openai_tool too)
 │       │   ├── error_handling.yaml    CSDK-005
 │       │   └── idempotency.yaml       CSDK-006
+│       ├── openai_sdk/
+│       │   ├── tool_definition.yaml   OAIS-001, OAIS-002, OAIS-007
+│       │   ├── error_handling.yaml    OAIS-005
+│       │   └── idempotency.yaml       OAIS-006
+│       ├── mcp/
+│       │   └── injection.yaml         MCP-001, MCP-002, MCP-003
+│       ├── catalog/
+│       │   └── capability_class.yaml  CATL-001 through CATL-009
 │       └── openshell/
 │           ├── shell.yaml             OSH-001, OSH-002
 │           ├── filesystem.yaml        OSH-003
@@ -378,6 +411,10 @@ internal/
 ├── generation/                  Hooks + Policy generators (deterministic).
 ├── review/                      Human renderer, apply, export ZIP.
 └── inference/                   BYOK inference router (stub; cache only).
+
+tools/
+└── gather_tools.py              Standalone GitHub scraper. Produces
+                                 tools_raw.yaml for catalog curation.
 ```
 
 ### `internal/analysis/heuristics.go` — the shared-helper boundary

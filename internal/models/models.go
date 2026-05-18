@@ -32,12 +32,15 @@ func SeverityWeight(s Severity) float64 {
 	}
 }
 
-// DetectorCategory maps to the two AutoFix categories in architecture §0.
+// DetectorCategory maps to a scanner policy category.
 type DetectorCategory string
 
 const (
 	CategoryClaudeSDK DetectorCategory = "claude_sdk"
 	CategoryOpenShell DetectorCategory = "openshell"
+	CategoryOpenAISDK DetectorCategory = "openai_sdk"
+	CategoryMCP       DetectorCategory = "mcp"
+	CategoryCatalog   DetectorCategory = "catalog"
 )
 
 // ToolKind drives detector applicability.
@@ -45,8 +48,9 @@ type ToolKind string
 
 const (
 	KindClaudeSDKTool   ToolKind = "claude_sdk_tool"
-	KindOpenAITool      ToolKind = "openai_tool" // OpenAI Agents SDK @function_tool
+	KindOpenAITool      ToolKind = "openai_tool"      // OpenAI Agents SDK @function_tool
 	KindMCPTool         ToolKind = "mcp_tool"
+	KindGoogleADKTool   ToolKind = "google_adk_tool"  // Google Agent Development Kit @adk.tool
 	KindShellInvocation ToolKind = "shell_invocation"
 	KindUnknown         ToolKind = "unknown"
 )
@@ -67,16 +71,17 @@ const (
 // ToolDef is one discovered surface that an agent can invoke at runtime.
 // Mirrors the Tool Discovery node in architecture §2.
 type ToolDef struct {
-	Name           string            `json:"name"`
-	Kind           ToolKind          `json:"kind"`
-	Language       Language          `json:"language"`
-	FilePath       string            `json:"file_path"` // relative to repo root
-	Line           int               `json:"line"`
-	EndLine        int               `json:"end_line"`
-	Description    string            `json:"description,omitempty"`
-	HasTypedParams bool              `json:"has_typed_params"`
-	ParamNames     []string          `json:"param_names,omitempty"`
-	Facts          map[string]string `json:"facts,omitempty"`
+	Name            string            `json:"name"`
+	Kind            ToolKind          `json:"kind"`
+	Language        Language          `json:"language"`
+	FilePath        string            `json:"file_path"` // relative to repo root
+	Line            int               `json:"line"`
+	EndLine         int               `json:"end_line"`
+	Description     string            `json:"description,omitempty"`
+	HasTypedParams  bool              `json:"has_typed_params"`
+	ParamNames      []string          `json:"param_names,omitempty"`
+	Facts           map[string]string `json:"facts,omitempty"`
+	CapabilityClass string            `json:"capability_class,omitempty"` // from catalog enrichment
 }
 
 // ComponentKind labels the type of an agent component the normalizer found

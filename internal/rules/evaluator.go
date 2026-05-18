@@ -83,6 +83,9 @@ func (e MatchExpr) Evaluate(t models.ToolDef, pf analysis.ParsedFile) bool {
 	if len(e.HasBodyText) > 0 && !PredHasBodyText(e.HasBodyText, t, pf) {
 		return false
 	}
+	if len(e.CapabilityClassIn) > 0 && !PredCapabilityClassIn(e.CapabilityClassIn, t) {
+		return false
+	}
 
 	// Nested struct predicates
 	if e.ParamNameMatches != nil && !PredParamNameMatches(*e.ParamNameMatches, t) {

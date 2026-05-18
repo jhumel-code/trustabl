@@ -96,14 +96,13 @@ func toolsInFile(pf ParsedFile) []models.ToolDef {
 }
 
 // kindFromDecorators inspects decorator nodes and decides whether this looks
-// like a Claude Agent SDK tool, an OpenAI Agents SDK tool, an MCP tool, or
-// neither. Conservative: when in doubt, return Unknown — a false negative is
-// fixable by adding a recognizer; a false positive triggers detectors on user
-// code that isn't even a tool.
+// like a Claude Agent SDK tool, an OpenAI Agents SDK tool, an MCP tool, a
+// Google ADK tool, or neither. Conservative: when in doubt, return Unknown —
+// a false negative is fixable by adding a recognizer; a false positive
+// triggers detectors on user code that isn't even a tool.
 //
-// Order matters: @function_tool is OpenAI Agents SDK and is checked before
-// the more permissive "@tool" Claude SDK match (which would otherwise swallow
-// "@function_tool" via substring).
+// Order matters: more specific patterns are checked before catch-alls.
+// @function_tool must come before @tool, and @adk.tool before @tool.
 func kindFromDecorators(decs []*sitter.Node, src []byte) models.ToolKind {
 	for _, d := range decs {
 		text := astutil.NodeText(d, src)
@@ -112,6 +111,11 @@ func kindFromDecorators(decs []*sitter.Node, src []byte) models.ToolKind {
 		// OpenAI Agents SDK — `@function_tool` and `@function_tool(...)`.
 		case strings.Contains(lower, "@function_tool"):
 			return models.KindOpenAITool
+		// Google Agent Development Kit — `@adk.tool`, `@genai.tool`, etc.
+		case strings.Contains(lower, "@adk.tool"),
+			strings.Contains(lower, "@genai.tool"),
+			strings.Contains(lower, "google.adk"):
+			return models.KindGoogleADKTool
 		// Claude Agent SDK conventions. Real names are still in flux —
 		// CSDK is pre-1.0. Expand this list as the SDK stabilizes.
 		case strings.Contains(lower, "@tool"),

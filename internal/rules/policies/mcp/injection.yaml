@@ -1,0 +1,93 @@
+policy:
+  id: mcp_injection
+  name: MCP tool injection risks
+  category: mcp
+  description: >
+    Rules targeting injection vulnerabilities specific to MCP server tools.
+    MCP tools are often invoked by external orchestrators with model-controlled
+    inputs — injection-prone parameter names and eval/exec usage are
+    especially dangerous in this context.
+
+rules:
+  - id: MCP-001
+    title: MCP tool accepts injection-prone parameter names
+    severity: high
+    confidence: 0.75
+    language: python
+    applies_to:
+      - mcp_tool
+    singleton: false
+    match:
+      param_name_matches:
+        exact:
+          - cmd
+          - command
+          - exec
+          - expression
+          - payload
+        contains:
+          - command
+          - inject
+    explanation: >
+      The MCP tool accepts a parameter whose name suggests it receives raw
+      commands, expressions, or payloads. MCP tools are invoked by the model
+      with attacker-influenced inputs; a parameter named `cmd` or `command`
+      is a strong signal that user-controlled text reaches an execution path.
+      Confirm the parameter is actually consumed safely before dismissing.
+    fix: >
+      Replace open-ended command parameters with structured, typed inputs.
+      If a command string is genuinely required, validate it against an
+      allowlist before use.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: param_name_sanitize
+
+  - id: MCP-002
+    title: MCP tool contains eval or exec call
+    severity: critical
+    confidence: 0.9
+    language: python
+    applies_to:
+      - mcp_tool
+    singleton: false
+    match:
+      has_body_text:
+        - "eval("
+        - "exec("
+        - "compile("
+        - "__import__("
+    explanation: >
+      The MCP tool calls eval(), exec(), compile(), or __import__() — all of
+      which execute arbitrary Python from a string. Because MCP tools receive
+      inputs from the model (which is influenced by external content), any
+      eval/exec path is a direct remote code execution vector.
+    fix: >
+      Remove eval/exec entirely. If dynamic dispatch is needed, use an
+      explicit allowlist and dispatch table rather than executing strings.
+    fix_hints:
+      policy_action: deny_code_exec
+
+  - id: MCP-003
+    title: MCP tool deserializes data with pickle or marshal
+    severity: critical
+    confidence: 0.95
+    language: python
+    applies_to:
+      - mcp_tool
+    singleton: false
+    match:
+      has_body_text:
+        - "pickle.loads"
+        - "pickle.load("
+        - "marshal.loads"
+        - "marshal.load("
+    explanation: >
+      The MCP tool deserializes data using pickle or marshal, both of which
+      execute arbitrary code during deserialization. If the data originates
+      from model-controlled inputs or external sources, this is an
+      unconditional remote code execution vulnerability.
+    fix: >
+      Replace pickle/marshal with a safe format such as JSON or msgpack.
+      Never deserialize untrusted bytes with pickle.
+    fix_hints:
+      policy_action: deny_unsafe_deserialize

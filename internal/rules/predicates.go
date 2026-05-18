@@ -152,6 +152,21 @@ func PredHasDynamicURLCall(t models.ToolDef, pf analysis.ParsedFile) bool {
 
 // ─── string-list predicates ───────────────────────────────────────────────────
 
+// PredCapabilityClassIn returns true when the tool's CapabilityClass (set by
+// the catalog enrichment step in scanner.Run) matches any of the given classes.
+// Returns false for tools the catalog did not classify.
+func PredCapabilityClassIn(classes []string, t models.ToolDef) bool {
+	if t.CapabilityClass == "" {
+		return false
+	}
+	for _, c := range classes {
+		if t.CapabilityClass == c {
+			return true
+		}
+	}
+	return false
+}
+
 func PredNameIn(names []string, t models.ToolDef) bool {
 	lower := strings.ToLower(t.Name)
 	for _, n := range names {

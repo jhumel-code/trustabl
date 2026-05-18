@@ -1,0 +1,80 @@
+policy:
+  id: openai_sdk_tool_definition
+  name: OpenAI Agents SDK tool definition hygiene
+  category: openai_sdk
+  description: >
+    Rules that govern how an OpenAI Agents SDK @function_tool presents itself
+    to the model. Violations degrade the model's ability to select the right
+    tool and to validate its own outputs before invoking it.
+
+rules:
+  - id: OAIS-001
+    title: OpenAI tool has no description
+    severity: low
+    confidence: 0.95
+    language: python
+    applies_to:
+      - openai_tool
+    singleton: false
+    match:
+      has_docstring: false
+    explanation: >
+      The OpenAI Agents SDK surfaces the @function_tool's docstring as the
+      tool description shown to the model. With no description the model must
+      guess from the function name when to call this tool — which causes
+      mis-selection under ambiguous prompts.
+    fix: >
+      Add a one-paragraph docstring describing inputs, outputs, and when to
+      use this tool.
+    fix_hints:
+      add_docstring: true
+
+  - id: OAIS-002
+    title: OpenAI tool parameters are not type-annotated
+    severity: medium
+    confidence: 0.9
+    language: python
+    applies_to:
+      - openai_tool
+    singleton: false
+    match:
+      all:
+        - has_params: true
+        - has_typed_params: false
+    explanation: >
+      Without parameter type annotations the SDK cannot generate a JSON schema
+      for the tool, so the model cannot validate its own output before
+      invoking it. Hallucinated parameter shapes surface as TypeErrors at
+      runtime instead of clean validation errors pre-invocation.
+    fix: >
+      Annotate every parameter with a type. Use Pydantic models for nested
+      or complex arguments.
+    fix_hints:
+      add_input_schema: true
+
+  - id: OAIS-007
+    title: Ambiguous OpenAI tool name
+    severity: low
+    confidence: 0.9
+    language: python
+    applies_to:
+      - openai_tool
+    singleton: false
+    match:
+      name_in:
+        - process
+        - handle
+        - run
+        - do
+        - execute
+        - perform
+        - work
+        - go
+        - thing
+        - stuff
+    explanation: >
+      Tool names like `process`, `handle`, or `run` give the model no signal
+      about intent. The model will either call this tool for the wrong job or
+      refuse to call it at all when a better-named alternative is present.
+    fix: >
+      Rename to a verb-object form, e.g. `summarize_invoice`, `fetch_weather`.
