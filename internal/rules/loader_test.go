@@ -19,6 +19,7 @@ policy:
 rules:
   - id: TEST-001
     title: A test rule
+    scope: tool
     severity: low
     confidence: 0.8
     applies_to:
@@ -122,6 +123,7 @@ policy:
 rules:
   - id: DUP-001
     title: Rule A
+    scope: tool
     severity: low
     confidence: 0.8
     applies_to: [claude_sdk_tool]
@@ -139,9 +141,10 @@ policy:
 rules:
   - id: DUP-001
     title: Rule B
+    scope: tool
     severity: high
     confidence: 0.9
-    applies_to: [claude_sdk_tool]
+    applies_to: [shell_invocation]
     match:
       has_docstring: true
     explanation: x
@@ -154,5 +157,54 @@ rules:
 	}
 	if !strings.Contains(err.Error(), "DUP-001") {
 		t.Errorf("error should mention duplicate rule ID, got: %v", err)
+	}
+}
+
+func TestLoad_RejectsMissingScope(t *testing.T) {
+	fs := makeFS(map[string]string{
+		"test/rule.yaml": `
+policy:
+  id: test
+  name: Test
+  category: claude_sdk
+rules:
+  - id: TEST-001
+    title: Missing scope
+    severity: low
+    confidence: 0.5
+    applies_to: [claude_sdk_tool]
+    match: {has_docstring: false}
+    explanation: x
+    fix: x
+`,
+	})
+	_, err := rules.Load(fs)
+	if err == nil || !strings.Contains(err.Error(), "scope") {
+		t.Fatalf("expected scope-required error, got %v", err)
+	}
+}
+
+func TestLoad_RejectsUnknownScope(t *testing.T) {
+	fs := makeFS(map[string]string{
+		"test/rule.yaml": `
+policy:
+  id: test
+  name: Test
+  category: claude_sdk
+rules:
+  - id: TEST-001
+    title: Bad scope
+    scope: tooooool
+    severity: low
+    confidence: 0.5
+    applies_to: [claude_sdk_tool]
+    match: {has_docstring: false}
+    explanation: x
+    fix: x
+`,
+	})
+	_, err := rules.Load(fs)
+	if err == nil || !strings.Contains(err.Error(), "scope") {
+		t.Fatalf("expected unknown-scope error, got %v", err)
 	}
 }
