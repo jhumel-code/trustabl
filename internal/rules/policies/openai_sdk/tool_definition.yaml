@@ -1,0 +1,49 @@
+policy:
+  id: openai_sdk_tool_definition
+  name: OpenAI Agents SDK tool definition hygiene
+  category: openai_sdk
+  description: >
+    Rules covering the structural hygiene of OpenAI Agents SDK @function_tool
+    definitions. These map to the SDK's expectations: the docstring is the
+    model-facing description; type hints drive the auto-generated JSON schema.
+
+rules:
+  - id: OAI-001
+    title: Tool function has no docstring
+    scope: tool
+    severity: low
+    confidence: 0.9
+    language: python
+    applies_to:
+      - openai_tool
+    match:
+      has_docstring: false
+    explanation: >
+      The OpenAI Agents SDK uses the @function_tool's docstring as the
+      description sent to the model when it decides whether to call this
+      tool. Without a docstring, the model has no information to base its
+      selection on, leading to incorrect or skipped tool calls.
+    fix: >
+      Add a one-line docstring describing what this tool does and when the
+      model should call it. Optionally describe parameters in a structured
+      format (Google or NumPy style) for richer schema metadata.
+
+  - id: OAI-002
+    title: Tool function has no type-annotated parameters
+    scope: tool
+    severity: medium
+    confidence: 0.85
+    language: python
+    applies_to:
+      - openai_tool
+    match:
+      has_params: true
+      has_typed_params: false
+    explanation: >
+      The OpenAI Agents SDK auto-generates a JSON schema for the tool from
+      Python type annotations. Without annotations, the schema is degraded
+      (parameters become Any), and the model receives unconstrained inputs
+      that frequently cause runtime errors.
+    fix: >
+      Add type hints to every parameter (def fetch(url: str, timeout: int = 10) -> dict).
+      Use Pydantic models or TypedDict for structured inputs when complex.

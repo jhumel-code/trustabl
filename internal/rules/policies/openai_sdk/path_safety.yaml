@@ -1,0 +1,34 @@
+policy:
+  id: openai_sdk_path_safety
+  name: OpenAI Agents SDK path safety
+  category: openai_sdk
+  description: >
+    Rules covering tool I/O that touches the filesystem with a user-supplied
+    path.
+
+rules:
+  - id: OAI-006
+    title: Tool accepts path without normalization
+    scope: tool
+    severity: high
+    confidence: 0.7
+    language: python
+    applies_to:
+      - openai_tool
+    match:
+      call_uses_unnormalized_path_param:
+        callees: [open, Path]
+        callee_prefixes: [shutil., os.]
+    explanation: >
+      The tool accepts a path-like parameter and flows it into a filesystem
+      call (open, Path(...), shutil.*, os.*) without calling .resolve() or
+      os.path.realpath() on it first. The agent's input may contain ..
+      segments that escape the intended directory, exposing arbitrary files
+      on the host.
+    fix: >
+      Normalize the path before use: p = Path(file_path).resolve(). Then
+      check that the resolved path is inside an explicit allowed-root
+      directory before opening.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: path_normalization

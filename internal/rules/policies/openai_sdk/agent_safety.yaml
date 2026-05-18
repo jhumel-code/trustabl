@@ -1,0 +1,110 @@
+policy:
+  id: openai_sdk_agent_safety
+  name: OpenAI Agents SDK agent wiring safety
+  category: openai_sdk
+  description: >
+    Agent-scoped rules for the OpenAI Agents SDK. These fire per Agent(...) /
+    SandboxAgent(...) call and inspect the constructor kwargs and the
+    resolved tools / handoffs / guardrails graph.
+
+rules:
+  - id: OAI-101
+    title: Agent has no input_guardrails AND wires shell or filesystem-touching tools
+    scope: agent
+    severity: high
+    confidence: 0.85
+    language: python
+    applies_to:
+      - openai_agent
+      - openai_sandbox_agent
+    match:
+      all:
+        - agent_kwarg_list_empty: [input_guardrails]
+        - agent_uses_tool_kind: [shell_invocation]
+    explanation: >
+      This agent is wired with tools that execute shell commands or touch
+      the filesystem, but has no input_guardrails configured. A prompt-
+      injection user input can reach the shell-invoking tool with no
+      pre-check; guardrails are the OpenAI Agents SDK's primary defense
+      against this class of attack.
+    fix: >
+      Add at least one @input_guardrail validating that the user input is
+      safe to dispatch to shell tools, and wire it via input_guardrails=[...]
+      on the Agent(...) constructor. The guardrail should return
+      GuardrailFunctionOutput(tripwire_triggered=True, ...) on rejected input.
+
+  - id: OAI-102
+    title: Agent uses tool_use_behavior="stop_on_first_tool"
+    scope: agent
+    severity: high
+    confidence: 0.95
+    language: python
+    applies_to:
+      - openai_agent
+      - openai_sandbox_agent
+    match:
+      agent_kwarg_value:
+        kwarg: tool_use_behavior
+        value: stop_on_first_tool
+    explanation: >
+      With tool_use_behavior="stop_on_first_tool", the first tool's raw
+      output becomes the agent's final response without any model
+      post-processing. If the tool returns attacker-controlled data (web
+      search results, untrusted file contents, MCP-provided tool output),
+      that data is rendered to the user verbatim — an exfiltration and
+      prompt-injection vector.
+    fix: >
+      Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default
+      "run_llm_again" is safe) or constrain it via StopAtTools(...) listing
+      only tools whose outputs you control.
+
+  - id: OAI-103
+    title: tool_choice="required" combined with reset_tool_choice=False
+    scope: agent
+    severity: high
+    confidence: 0.95
+    language: python
+    applies_to:
+      - openai_agent
+      - openai_sandbox_agent
+    match:
+      all:
+        - agent_kwarg_value:
+            kwarg: model_settings.tool_choice
+            value: required
+        - agent_kwarg_value:
+            kwarg: reset_tool_choice
+            value: "False"
+    explanation: >
+      The agent forces tool use on every turn (tool_choice="required") AND
+      does not reset the tool choice after each call (reset_tool_choice=False).
+      This is the SDK's documented loop pattern: the model is required to
+      call a tool, calls one, and is required to call another, indefinitely.
+    fix: >
+      Either drop reset_tool_choice=False (the default True breaks the loop)
+      or change tool_choice to "auto". If forced tool use is intentional,
+      ensure at least one of the tools terminates the agent via
+      tool_use_behavior=StopAtTools(...).
+
+  - id: OAI-104
+    title: Raw Agent (not SandboxAgent) wires shell or filesystem-touching tools
+    scope: agent
+    severity: medium
+    confidence: 0.75
+    language: python
+    applies_to:
+      - openai_agent
+    match:
+      all:
+        - agent_class: [Agent]
+        - agent_uses_tool_kind: [shell_invocation]
+    explanation: >
+      This agent uses the plain Agent class with tools that touch the
+      shell or filesystem. The SDK ships SandboxAgent specifically to gate
+      privileged tools inside an isolated workspace; using raw Agent
+      surfaces the host environment to the agent directly.
+    fix: >
+      Switch from Agent(...) to SandboxAgent(...) and define a Manifest
+      restricting the file paths and commands the agent can reach. If the
+      privileged tools are needed but sandboxing is impractical, document
+      the decision and acknowledge the elevated risk explicitly.

@@ -1,0 +1,44 @@
+policy:
+  id: openai_sdk_network
+  name: OpenAI Agents SDK network hygiene
+  category: openai_sdk
+  description: >
+    Rules covering outbound network calls made from inside OpenAI Agents SDK
+    tools. The SDK does not enforce timeouts; they must be set explicitly.
+
+rules:
+  - id: OAI-005
+    title: Network call has no timeout
+    scope: tool
+    severity: high
+    confidence: 0.85
+    language: python
+    applies_to:
+      - openai_tool
+    match:
+      call_without_kwarg:
+        callees:
+          - requests.get
+          - requests.post
+          - requests.put
+          - requests.delete
+          - requests.patch
+          - requests.head
+          - httpx.get
+          - httpx.post
+          - httpx.put
+          - httpx.delete
+          - httpx.patch
+        missing: timeout
+    explanation: >
+      An OpenAI Agents SDK tool that makes a network request without a
+      timeout can hang indefinitely, blocking the agent's run loop and
+      consuming the conversation's wall-clock budget. The SDK does not
+      enforce timeouts on tool code.
+    fix: >
+      Pass timeout= (typically 5-30 seconds depending on the endpoint).
+      Surface timeouts as a structured tool error the model can react to,
+      using failure_error_function (see OAI-004).
+    fix_hints:
+      hook: pretooluse_validate
+      guard: timeout_required

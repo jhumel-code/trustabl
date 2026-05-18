@@ -1,0 +1,31 @@
+policy:
+  id: openai_sdk_tracing
+  name: OpenAI Agents SDK tracing configuration
+  category: openai_sdk
+  description: >
+    Repo-scoped rules for OpenAI Agents SDK tracing behavior.
+
+rules:
+  - id: OAI-201
+    title: Project uses default OpenAI tracing
+    scope: repo
+    severity: medium
+    confidence: 0.8
+    language: python
+    applies_to:
+      - openai_agents
+    match:
+      all:
+        - repo_has_sdk_in_code: [openai_agents]
+        - repo_uses_default_tracing: true
+    explanation: >
+      The project uses the OpenAI Agents SDK with default tracing enabled.
+      By default, inputs, tool calls, tool outputs, and agent responses are
+      sent to OpenAI's hosted tracing backend. For projects handling
+      sensitive data (PII, credentials, internal documents), this is a data
+      egress channel that is easy to miss.
+    fix: >
+      Either disable tracing entirely (set OPENAI_AGENTS_DISABLE_TRACING=1
+      in the environment) OR register a custom trace processor via
+      agents.tracing.add_trace_processor(...) that redacts sensitive fields
+      before they leave the process.

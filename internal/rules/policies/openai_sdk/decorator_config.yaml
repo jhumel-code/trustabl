@@ -1,0 +1,56 @@
+policy:
+  id: openai_sdk_decorator_config
+  name: OpenAI Agents SDK @function_tool decorator config
+  category: openai_sdk
+  description: >
+    Rules covering the kwargs passed to @function_tool that affect runtime
+    safety. These read ToolDef.Config, captured by discovery from the
+    decorator's call arguments.
+
+rules:
+  - id: OAI-003
+    title: Tool sets strict_mode=False
+    scope: tool
+    severity: medium
+    confidence: 0.95
+    language: python
+    applies_to:
+      - openai_tool
+    match:
+      tool_decorator_kwarg_value:
+        kwarg: strict_mode
+        value: "False"
+    explanation: >
+      Setting strict_mode=False on @function_tool relaxes JSON-schema
+      enforcement at runtime. The model can then pass arguments that do not
+      match the tool's type hints, leading to silent type errors or crashes
+      inside the tool body.
+    fix: >
+      Remove the strict_mode=False kwarg (the default True is the safe
+      setting). If the relaxation was needed for a specific input shape,
+      adjust the type hints to accept that shape explicitly.
+
+  - id: OAI-004
+    title: Tool has no failure_error_function
+    scope: tool
+    severity: medium
+    confidence: 0.7
+    language: python
+    applies_to:
+      - openai_tool
+    match:
+      not:
+        tool_decorator_kwarg_present:
+          - failure_error_function
+    explanation: >
+      When a tool raises an exception, the OpenAI Agents SDK surfaces the
+      exception's string representation to the model by default. The model
+      receives an opaque error with no recovery contract, leading to
+      hallucinated retries or confused responses.
+      Setting failure_error_function lets you control what the model sees,
+      typically a structured JSON describing the failure and what input to
+      try instead.
+    fix: >
+      Pass failure_error_function= to the decorator. The function should
+      receive the exception and the run context, and return a structured
+      string the model can reason about.

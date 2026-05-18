@@ -55,6 +55,7 @@ type DetectorCategory string
 
 const (
 	CategoryClaudeSDK DetectorCategory = "claude_sdk"
+	CategoryOpenAISDK DetectorCategory = "openai_sdk"
 	CategoryOpenShell DetectorCategory = "openshell"
 )
 
