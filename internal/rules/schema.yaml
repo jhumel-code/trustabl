@@ -73,11 +73,15 @@ rules:
                                             # for that kind. Cross-SDK rules belong in their own
                                             # SDK-specific policy file with their own framing.
 
-    singleton: false                        # OPTIONAL (default false). If true, the rule fires AT MOST
-                                            # once per scan, against the first applicable tool. Use for
-                                            # manifest-level checks ("no resource limits configured")
-                                            # whose finding does not vary per tool. Pair with `match: {}`
-                                            # to fire unconditionally.
+    scope: tool                             # REQUIRED. One of: tool | agent | repo.
+                                            #   tool  — fires per ToolDef. Input: a ToolDef + ParsedFile.
+                                            #           applies_to accepts: claude_sdk_tool, openai_tool,
+                                            #           mcp_tool, shell_invocation, unknown.
+                                            #   agent — fires per AgentDef (Agent/SandboxAgent/AgentDefinition
+                                            #           constructor call). applies_to accepts: openai_agent,
+                                            #           openai_sandbox_agent, claude_agent_definition.
+                                            #   repo  — fires once per scan. applies_to accepts:
+                                            #           claude_sdk, openai_agents, openshell, mcp.
 
     match:                                  # REQUIRED. Predicate expression. See the reference section
                                             # below the example for the full vocabulary.
@@ -217,3 +221,78 @@ rules:
 #
 #       callees:         [open, Path]    OPTIONAL. Exact-match callees.
 #       callee_prefixes: [shutil., os.]  OPTIONAL. Prefix-match callees.
+#
+#
+#   tool_decorator_kwarg_value:
+#       Fires when the tool's decorator call has a specific kwarg equal to a
+#       specific value (literal text comparison against the source). Use for
+#       @function_tool(strict_mode=False) style checks.
+#
+#       kwarg: strict_mode               REQUIRED. Decorator kwarg name.
+#       value: "False"                   REQUIRED. Literal text — quote bool/None.
+#
+#
+#   tool_decorator_kwarg_present: [name, name, ...]
+#       Fires when the tool's decorator call has ANY of the listed kwargs set.
+#
+#
+# ━━━ AGENT-SCOPE PREDICATES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# (used only in scope: agent rules)
+#
+#   agent_class: [Agent, SandboxAgent, AgentDefinition]
+#       Fires when the agent's class name is any of the listed values.
+#
+#   agent_kwarg_present: [kwarg, dotted.path, ...]
+#       Fires when ANY of the listed kwargs is present in the agent constructor.
+#       Supports dotted paths for nested kwargs (model_settings.tool_choice).
+#
+#   agent_kwarg_missing: [kwarg, dotted.path, ...]
+#       Fires when ANY of the listed kwargs is absent (not provided).
+#
+#   agent_kwarg_list_empty: [kwarg, ...]
+#       Fires when ANY of the listed list kwargs is absent or an empty list [].
+#       Use for input_guardrails/output_guardrails presence checks.
+#
+#   agent_kwarg_value:
+#       Fires when the named kwarg equals the given value. String literals have
+#       surrounding quotes stripped before comparison.
+#
+#       kwarg: model_settings.tool_choice   REQUIRED. Supports dotted path.
+#       value: required                     REQUIRED. Value after quote-stripping.
+#
+#   agent_uses_tool_kind: [shell_invocation, mcp_tool, ...]
+#       Fires when any of the agent's resolved ToolRefs has the given ToolKind.
+#       Only resolved (in-repo) tools are checked; External=true refs are skipped.
+#
+#   agent_handoff_to_class: [Agent, SandboxAgent, ...]
+#       Fires when any of the agent's resolved HandoffRefs has the given class.
+#
+#
+# ━━━ REPO-SCOPE PREDICATES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# (used only in scope: repo rules; match runs once per scan)
+#
+#   repo_has_sdk_dep: [openai-agents, claude-agent-sdk, ...]
+#       Fires when RepoProfile.SDKDeps contains a dep with the given name.
+#       Populated by ingestion.Recon from pyproject.toml / requirements.txt etc.
+#
+#   repo_has_sdk_in_code: [openai_agents, claude_agent_sdk, openshell, mcp]
+#       Fires when RepoInventory.SDKsDetected contains the given SDK value.
+#       Derived from actually-observed tool/agent kinds in code (not just deps).
+#
+#   repo_has_agent_class: [Agent, SandboxAgent, AgentDefinition]
+#       Fires when any AgentDef in the inventory has the given class.
+#
+#   repo_has_no_agent_class: [SandboxAgent, ...]
+#       Fires when NO AgentDef in the inventory has the given class. Negation
+#       of repo_has_agent_class; useful for "you have FS tools but no sandbox".
+#
+#   repo_component_present: [mcp_config, hook_script, claude_md, ...]
+#       Fires when any Component in Manifest.Components has the given kind.
+#       Allowed values match models.ComponentKind: mcp_config, claude_md,
+#       claude_settings, subagent, slash_command, hook_script, sandbox_policy,
+#       system_prompt, dependency_manifest, claude_agent_definition.
+#
+#   repo_uses_default_tracing: true | false
+#       Fires when the scanner's derived UsesDefaultTracing flag matches.
+#       UsesDefaultTracing is true when no add_trace_processor or
+#       OPENAI_AGENTS_DISABLE_TRACING appears anywhere in parsed Python files.

@@ -436,3 +436,196 @@ def get_editor(editor_id: str) -> dict:
 		t.Error("expected CallUsesParam false: 'editor_id' is not path-like")
 	}
 }
+
+// ─── tool decorator predicates ────────────────────────────────────────────────
+
+func TestPredToolDecoratorKwargValue(t *testing.T) {
+	tool := models.ToolDef{Config: map[string]string{"strict_mode": "False"}}
+	if !rules.PredToolDecoratorKwargValue(rules.ToolDecoratorKwargValueExpr{Kwarg: "strict_mode", Value: "False"}, tool) {
+		t.Error("expected match")
+	}
+	if rules.PredToolDecoratorKwargValue(rules.ToolDecoratorKwargValueExpr{Kwarg: "strict_mode", Value: "True"}, tool) {
+		t.Error("expected no match (value mismatch)")
+	}
+	if rules.PredToolDecoratorKwargValue(rules.ToolDecoratorKwargValueExpr{Kwarg: "other", Value: "False"}, tool) {
+		t.Error("expected no match (kwarg absent)")
+	}
+}
+
+func TestPredToolDecoratorKwargPresent(t *testing.T) {
+	tool := models.ToolDef{Config: map[string]string{"strict_mode": "False"}}
+	if !rules.PredToolDecoratorKwargPresent([]string{"strict_mode"}, tool) {
+		t.Error("expected present")
+	}
+	if rules.PredToolDecoratorKwargPresent([]string{"failure_error_function"}, tool) {
+		t.Error("expected not present")
+	}
+}
+
+// ─── agent predicates ─────────────────────────────────────────────────────────
+
+func TestPredAgentClass(t *testing.T) {
+	a := models.AgentDef{Class: "Agent"}
+	if !rules.PredAgentClass([]string{"Agent"}, a) {
+		t.Error("expected match")
+	}
+	if rules.PredAgentClass([]string{"SandboxAgent"}, a) {
+		t.Error("expected no match")
+	}
+}
+
+func TestPredAgentKwargPresent(t *testing.T) {
+	a := models.AgentDef{Kwargs: &models.KwargTree{
+		Children: map[string]*models.KwargTree{
+			"model": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"gpt-4"`}},
+			"model_settings": {Children: map[string]*models.KwargTree{
+				"tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"required"`}},
+			}},
+		},
+	}}
+	if !rules.PredAgentKwargPresent([]string{"model"}, a) {
+		t.Error("expected model present")
+	}
+	if !rules.PredAgentKwargPresent([]string{"model_settings.tool_choice"}, a) {
+		t.Error("expected dotted match")
+	}
+	if rules.PredAgentKwargPresent([]string{"nope"}, a) {
+		t.Error("expected not present")
+	}
+}
+
+func TestPredAgentKwargMissing(t *testing.T) {
+	a := models.AgentDef{Kwargs: &models.KwargTree{
+		Children: map[string]*models.KwargTree{
+			"model": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"gpt-4"`}},
+		},
+	}}
+	if !rules.PredAgentKwargMissing([]string{"input_guardrails"}, a) {
+		t.Error("expected input_guardrails missing")
+	}
+	if rules.PredAgentKwargMissing([]string{"model"}, a) {
+		t.Error("expected model NOT missing")
+	}
+}
+
+func TestPredAgentKwargListEmpty(t *testing.T) {
+	a := models.AgentDef{Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{}}}
+	if !rules.PredAgentKwargListEmpty([]string{"input_guardrails"}, a) {
+		t.Error("expected list empty when kwarg absent")
+	}
+	a = models.AgentDef{Kwargs: &models.KwargTree{
+		Children: map[string]*models.KwargTree{
+			"input_guardrails": {Value: &models.Expr{Kind: models.ExprList, List: []models.Expr{
+				{Kind: models.ExprNameRef, Text: "g"},
+			}}},
+		},
+	}}
+	if rules.PredAgentKwargListEmpty([]string{"input_guardrails"}, a) {
+		t.Error("expected list NOT empty")
+	}
+}
+
+func TestPredAgentKwargValue_Dotted(t *testing.T) {
+	a := models.AgentDef{Kwargs: &models.KwargTree{
+		Children: map[string]*models.KwargTree{
+			"model_settings": {Children: map[string]*models.KwargTree{
+				"tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"required"`}},
+			}},
+			"reset_tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralBool, Text: "False"}},
+		},
+	}}
+	if !rules.PredAgentKwargValue(rules.AgentKwargValueExpr{Kwarg: "model_settings.tool_choice", Value: "required"}, a) {
+		t.Error("expected dotted match (after stripping quotes)")
+	}
+	if !rules.PredAgentKwargValue(rules.AgentKwargValueExpr{Kwarg: "reset_tool_choice", Value: "False"}, a) {
+		t.Error("expected bool literal match")
+	}
+}
+
+func TestPredAgentUsesToolKind(t *testing.T) {
+	shellTool := &models.ToolDef{Kind: models.KindShellInvocation, Name: "run"}
+	a := models.AgentDef{ToolRefs: []models.ToolRef{{Name: "run", Resolved: shellTool}}}
+	inv := models.RepoInventory{}
+	if !rules.PredAgentUsesToolKind([]string{"shell_invocation"}, a, inv) {
+		t.Error("expected match against shell_invocation tool ref")
+	}
+	if rules.PredAgentUsesToolKind([]string{"mcp_tool"}, a, inv) {
+		t.Error("expected no match")
+	}
+}
+
+func TestPredAgentHandoffToClass(t *testing.T) {
+	sub := &models.AgentDef{Class: "Agent"}
+	a := models.AgentDef{HandoffRefs: []models.AgentRef{{Resolved: sub}}}
+	if !rules.PredAgentHandoffToClass([]string{"Agent"}, a) {
+		t.Error("expected match")
+	}
+	if rules.PredAgentHandoffToClass([]string{"SandboxAgent"}, a) {
+		t.Error("expected no match")
+	}
+}
+
+// ─── repo predicates ──────────────────────────────────────────────────────────
+
+func TestPredRepoHasSDKDep(t *testing.T) {
+	p := models.RepoProfile{SDKDeps: []models.SDKDep{{Name: "openai-agents"}}}
+	if !rules.PredRepoHasSDKDep([]string{"openai-agents"}, p) {
+		t.Error("expected match")
+	}
+	if rules.PredRepoHasSDKDep([]string{"langgraph"}, p) {
+		t.Error("expected no match")
+	}
+}
+
+func TestPredRepoHasSDKInCode(t *testing.T) {
+	inv := models.RepoInventory{SDKsDetected: []models.SDK{models.SDKOpenAIAgents}}
+	if !rules.PredRepoHasSDKInCode([]string{"openai_agents"}, inv) {
+		t.Error("expected match")
+	}
+	if rules.PredRepoHasSDKInCode([]string{"claude_agent_sdk"}, inv) {
+		t.Error("expected no match")
+	}
+}
+
+func TestPredRepoHasAgentClass(t *testing.T) {
+	inv := models.RepoInventory{Agents: []models.AgentDef{{Class: "Agent"}}}
+	if !rules.PredRepoHasAgentClass([]string{"Agent"}, inv) {
+		t.Error("expected match")
+	}
+	if rules.PredRepoHasAgentClass([]string{"SandboxAgent"}, inv) {
+		t.Error("expected no match")
+	}
+}
+
+func TestPredRepoHasNoAgentClass(t *testing.T) {
+	inv := models.RepoInventory{Agents: []models.AgentDef{{Class: "Agent"}}}
+	if rules.PredRepoHasNoAgentClass([]string{"Agent"}, inv) {
+		t.Error("expected false when Agent exists")
+	}
+	if !rules.PredRepoHasNoAgentClass([]string{"SandboxAgent"}, inv) {
+		t.Error("expected true when SandboxAgent absent")
+	}
+}
+
+func TestPredRepoComponentPresent(t *testing.T) {
+	p := models.RepoProfile{Manifest: models.ScanManifest{
+		Components: []models.AgentComponent{{Kind: models.ComponentMCPConfig, Path: "mcp.json"}},
+	}}
+	if !rules.PredRepoComponentPresent([]string{"mcp_config"}, p) {
+		t.Error("expected match")
+	}
+	if rules.PredRepoComponentPresent([]string{"hook_script"}, p) {
+		t.Error("expected no match")
+	}
+}
+
+func TestPredRepoUsesDefaultTracing(t *testing.T) {
+	inv := models.RepoInventory{UsesDefaultTracing: true}
+	if !rules.PredRepoUsesDefaultTracing(true, inv) {
+		t.Error("expected default tracing = true")
+	}
+	inv.UsesDefaultTracing = false
+	if rules.PredRepoUsesDefaultTracing(true, inv) {
+		t.Error("expected default tracing = false after custom processor")
+	}
+}
