@@ -72,8 +72,20 @@ func (r *Renderer) Render(result models.ScanResult) string {
 			return styleHigh.Render(pct)
 		}
 	}
+	riskCell := func(risk float64) string {
+		s := fmt.Sprintf("%.1f/100", risk)
+		switch {
+		case risk >= 70.0:
+			return styleHigh.Render(s)
+		case risk >= 40.0:
+			return styleMed.Render(s)
+		default:
+			return styleLow.Render(s)
+		}
+	}
 
-	fmt.Fprintf(&b, "  Overall score:  %s\n\n", scoreCell(result.OverallScore))
+	fmt.Fprintf(&b, "  Overall score:  %s\n", scoreCell(result.OverallScore))
+	fmt.Fprintf(&b, "  Risk score:     %s\n\n", riskCell(result.RiskScore))
 
 	if len(result.Findings) == 0 {
 		b.WriteString(styleOK.Render("No findings. Nothing to commit.") + "\n")
@@ -83,8 +95,8 @@ func (r *Renderer) Render(result models.ScanResult) string {
 	// Per-tool readiness table.
 	b.WriteString(styleHeader.Render("Per-tool readiness") + "\n")
 	for _, rd := range result.Readiness {
-		fmt.Fprintf(&b, "  %-32s %s  (%d findings)\n",
-			rd.ToolName, scoreCell(rd.Score), rd.FindingCount)
+		fmt.Fprintf(&b, "  %-32s %s  %s  (%d findings)\n",
+			rd.ToolName, scoreCell(rd.Score), riskCell(rd.MaxBaseScore), rd.FindingCount)
 	}
 	b.WriteString("\n")
 

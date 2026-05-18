@@ -3,21 +3,23 @@
 All detection rules shipped in `internal/rules/policies/`, grouped by category.
 Each rule links to its source file. Severity abbreviations: **C** = critical, **H** = high, **M** = medium, **L** = low.
 
+Scores are Base Scores (0–10) derived from `Severity_Weight × Confidence`. See [scoring.md](scoring.md) for the full formula and rationale.
+
 ---
 
 ## Claude Agent SDK (`claude_sdk`) — CSDK-NNN
 
 Rules targeting `@tool`-decorated Python functions in the Claude Agent SDK.
 
-| ID | Title | Sev | Conf | File |
-|----|-------|-----|------|------|
-| CSDK-001 | Tool has no description | L | 0.95 | [tool_definition.yaml](../internal/rules/policies/claude_sdk/tool_definition.yaml) |
-| CSDK-002 | Tool parameters are not type-annotated | M | 0.90 | [tool_definition.yaml](../internal/rules/policies/claude_sdk/tool_definition.yaml) |
-| CSDK-003 | Network call has no timeout | H | 0.85 | [network.yaml](../internal/rules/policies/claude_sdk/network.yaml) |
-| CSDK-004 | Path parameter used in I/O without validation | H | 0.70 | [path_safety.yaml](../internal/rules/policies/claude_sdk/path_safety.yaml) |
-| CSDK-005 | Tool raises exceptions without a structured error contract | M | 0.60 | [error_handling.yaml](../internal/rules/policies/claude_sdk/error_handling.yaml) |
-| CSDK-006 | Mutating tool has no idempotency key | M | 0.55 | [idempotency.yaml](../internal/rules/policies/claude_sdk/idempotency.yaml) |
-| CSDK-007 | Ambiguous tool name | L | 0.90 | [tool_definition.yaml](../internal/rules/policies/claude_sdk/tool_definition.yaml) |
+| ID | Title | Sev | Conf | Score | File |
+|----|-------|-----|------|-------|------|
+| CSDK-001 | Tool has no description | L | 0.95 | 23.8 | [tool_definition.yaml](../internal/rules/policies/claude_sdk/tool_definition.yaml) |
+| CSDK-002 | Tool parameters are not type-annotated | M | 0.90 | 45.0 | [tool_definition.yaml](../internal/rules/policies/claude_sdk/tool_definition.yaml) |
+| CSDK-003 | Network call has no timeout | H | 0.85 | 63.8 | [network.yaml](../internal/rules/policies/claude_sdk/network.yaml) |
+| CSDK-004 | Path parameter used in I/O without validation | H | 0.70 | 52.5 | [path_safety.yaml](../internal/rules/policies/claude_sdk/path_safety.yaml) |
+| CSDK-005 | Tool raises exceptions without a structured error contract | M | 0.60 | 30.0 | [error_handling.yaml](../internal/rules/policies/claude_sdk/error_handling.yaml) |
+| CSDK-006 | Mutating tool has no idempotency key | M | 0.55 | 27.5 | [idempotency.yaml](../internal/rules/policies/claude_sdk/idempotency.yaml) |
+| CSDK-007 | Ambiguous tool name | L | 0.90 | 22.5 | [tool_definition.yaml](../internal/rules/policies/claude_sdk/tool_definition.yaml) |
 
 ### Topic files
 
@@ -36,13 +38,13 @@ Rules targeting `@tool`-decorated Python functions in the Claude Agent SDK.
 Rules targeting subprocess invocations, filesystem writes, and network egress.
 Feeds the generated `openshell/policy.yaml` sandbox config.
 
-| ID | Title | Sev | Conf | Singleton | File |
-|----|-------|-----|------|-----------|------|
-| OSH-001 | subprocess called with `shell=True` | C | 0.99 | no | [shell.yaml](../internal/rules/policies/openshell/shell.yaml) |
-| OSH-002 | Shell invocation without an allowed-command list | H | 0.85 | no | [shell.yaml](../internal/rules/policies/openshell/shell.yaml) |
-| OSH-003 | Filesystem write without sandbox restriction | H | 0.80 | no | [filesystem.yaml](../internal/rules/policies/openshell/filesystem.yaml) |
-| OSH-004 | No OpenShell resource limits configured | M | 0.95 | **yes** | [resources.yaml](../internal/rules/policies/openshell/resources.yaml) |
-| OSH-005 | Network egress is unrestricted | H | 0.70 | no | [network.yaml](../internal/rules/policies/openshell/network.yaml) |
+| ID | Title | Sev | Conf | Score | Singleton | File |
+|----|-------|-----|------|-------|-----------|------|
+| OSH-001 | subprocess called with `shell=True` | C | 0.99 | 99.0 | no | [shell.yaml](../internal/rules/policies/openshell/shell.yaml) |
+| OSH-002 | Shell invocation without an allowed-command list | H | 0.85 | 63.8 | no | [shell.yaml](../internal/rules/policies/openshell/shell.yaml) |
+| OSH-003 | Filesystem write without sandbox restriction | H | 0.80 | 60.0 | no | [filesystem.yaml](../internal/rules/policies/openshell/filesystem.yaml) |
+| OSH-004 | No OpenShell resource limits configured | M | 0.95 | 47.5 | **yes** | [resources.yaml](../internal/rules/policies/openshell/resources.yaml) |
+| OSH-005 | Network egress is unrestricted | H | 0.70 | 52.5 | no | [network.yaml](../internal/rules/policies/openshell/network.yaml) |
 
 > OSH-004 is a **singleton** — fires once per scan regardless of how many tools match.
 
@@ -61,13 +63,13 @@ Feeds the generated `openshell/policy.yaml` sandbox config.
 
 Rules targeting `@function_tool`-decorated functions in the OpenAI Agents SDK.
 
-| ID | Title | Sev | Conf | File |
-|----|-------|-----|------|------|
-| OAIS-001 | OpenAI tool has no description | L | 0.95 | [tool_definition.yaml](../internal/rules/policies/openai_sdk/tool_definition.yaml) |
-| OAIS-002 | OpenAI tool parameters are not type-annotated | M | 0.90 | [tool_definition.yaml](../internal/rules/policies/openai_sdk/tool_definition.yaml) |
-| OAIS-005 | OpenAI tool raises exceptions without a structured error contract | M | 0.60 | [error_handling.yaml](../internal/rules/policies/openai_sdk/error_handling.yaml) |
-| OAIS-006 | Mutating OpenAI tool has no idempotency key | M | 0.55 | [idempotency.yaml](../internal/rules/policies/openai_sdk/idempotency.yaml) |
-| OAIS-007 | Ambiguous OpenAI tool name | L | 0.90 | [tool_definition.yaml](../internal/rules/policies/openai_sdk/tool_definition.yaml) |
+| ID | Title | Sev | Conf | Score | File |
+|----|-------|-----|------|-------|------|
+| OAIS-001 | OpenAI tool has no description | L | 0.95 | 23.8 | [tool_definition.yaml](../internal/rules/policies/openai_sdk/tool_definition.yaml) |
+| OAIS-002 | OpenAI tool parameters are not type-annotated | M | 0.90 | 45.0 | [tool_definition.yaml](../internal/rules/policies/openai_sdk/tool_definition.yaml) |
+| OAIS-005 | OpenAI tool raises exceptions without a structured error contract | M | 0.60 | 30.0 | [error_handling.yaml](../internal/rules/policies/openai_sdk/error_handling.yaml) |
+| OAIS-006 | Mutating OpenAI tool has no idempotency key | M | 0.55 | 27.5 | [idempotency.yaml](../internal/rules/policies/openai_sdk/idempotency.yaml) |
+| OAIS-007 | Ambiguous OpenAI tool name | L | 0.90 | 22.5 | [tool_definition.yaml](../internal/rules/policies/openai_sdk/tool_definition.yaml) |
 
 > OAIS-003 and OAIS-004 are not yet defined — IDs reserved.
 
@@ -85,11 +87,11 @@ Rules targeting `@function_tool`-decorated functions in the OpenAI Agents SDK.
 
 Rules targeting `@server.tool`-decorated MCP server tools. Focus on injection and unsafe deserialization — MCP tools receive model-controlled inputs from external orchestrators.
 
-| ID | Title | Sev | Conf | File |
-|----|-------|-----|------|------|
-| MCP-001 | MCP tool accepts injection-prone parameter names | H | 0.75 | [injection.yaml](../internal/rules/policies/mcp/injection.yaml) |
-| MCP-002 | MCP tool contains eval or exec call | C | 0.90 | [injection.yaml](../internal/rules/policies/mcp/injection.yaml) |
-| MCP-003 | MCP tool deserializes data with pickle or marshal | C | 0.95 | [injection.yaml](../internal/rules/policies/mcp/injection.yaml) |
+| ID | Title | Sev | Conf | Score | File |
+|----|-------|-----|------|-------|------|
+| MCP-001 | MCP tool accepts injection-prone parameter names | H | 0.75 | 56.3 | [injection.yaml](../internal/rules/policies/mcp/injection.yaml) |
+| MCP-002 | MCP tool contains eval or exec call | C | 0.90 | 90.0 | [injection.yaml](../internal/rules/policies/mcp/injection.yaml) |
+| MCP-003 | MCP tool deserializes data with pickle or marshal | C | 0.95 | 95.0 | [injection.yaml](../internal/rules/policies/mcp/injection.yaml) |
 
 ### Topic files
 
@@ -103,17 +105,17 @@ Rules targeting `@server.tool`-decorated MCP server tools. Focus on injection an
 
 Cross-framework rules. Fire based on catalog-assigned capability class — apply regardless of SDK. Each rule checks that a capability class carries its required safety guard.
 
-| ID | Title | Capability class | Sev | Conf | File |
-|----|-------|-----------------|-----|------|------|
-| CATL-001 | Code execution tool has no sandbox guard | `code_execution` | C | 0.80 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
-| CATL-002 | Shell execution tool has no command allowlist | `shell_execution` | C | 0.80 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
-| CATL-003 | File write tool has no path validation | `file_write` | H | 0.75 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
-| CATL-004 | Agent spawn tool has no privilege scoping guard | `agent_spawn` | H | 0.70 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
-| CATL-005 | Auth tool has no secure credential handling | `auth_action` | H | 0.70 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
-| CATL-006 | Computer use tool has no confirmation gate | `computer_use` | C | 0.75 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
-| CATL-007 | Data mutation tool has no dry-run or rollback support | `data_mutate` | M | 0.65 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
-| CATL-008 | External API tool has no rate limit guard | `external_api` | M | 0.60 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
-| CATL-009 | Memory write tool has no size or scope limit | `memory_write` | L | 0.60 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| ID | Title | Capability class | Sev | Conf | Score | File |
+|----|-------|-----------------|-----|------|-------|------|
+| CATL-001 | Code execution tool has no sandbox guard | `code_execution` | C | 0.80 | 80.0 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| CATL-002 | Shell execution tool has no command allowlist | `shell_execution` | C | 0.80 | 80.0 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| CATL-003 | File write tool has no path validation | `file_write` | H | 0.75 | 56.3 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| CATL-004 | Agent spawn tool has no privilege scoping guard | `agent_spawn` | H | 0.70 | 52.5 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| CATL-005 | Auth tool has no secure credential handling | `auth_action` | H | 0.70 | 52.5 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| CATL-006 | Computer use tool has no confirmation gate | `computer_use` | C | 0.75 | 75.0 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| CATL-007 | Data mutation tool has no dry-run or rollback support | `data_mutate` | M | 0.65 | 32.5 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| CATL-008 | External API tool has no rate limit guard | `external_api` | M | 0.60 | 30.0 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
+| CATL-009 | Memory write tool has no size or scope limit | `memory_write` | L | 0.60 | 15.0 | [capability_class.yaml](../internal/rules/policies/catalog/capability_class.yaml) |
 
 ### Topic files
 

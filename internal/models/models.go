@@ -5,6 +5,30 @@
 // emitted for CI piping (--format json).
 package models
 
+import "math"
+
+// BaseScoreWeight maps severity to the 0–100 flat base score scale.
+// Separate from SeverityWeight (which feeds the readiness formula).
+func BaseScoreWeight(s Severity) float64 {
+	switch s {
+	case SeverityCritical:
+		return 100.0
+	case SeverityHigh:
+		return 75.0
+	case SeverityMedium:
+		return 50.0
+	case SeverityLow:
+		return 25.0
+	default:
+		return 0.0
+	}
+}
+
+// BaseScore returns the flat 0–100 score for a finding: BaseScoreWeight × Confidence, 1 dp.
+func (f Finding) BaseScore() float64 {
+	return math.Round(BaseScoreWeight(f.Severity)*f.Confidence*10) / 10
+}
+
 type Severity string
 
 const (
@@ -133,7 +157,8 @@ type Finding struct {
 // ToolReadiness is the per-tool score from the Scoring Engine.
 type ToolReadiness struct {
 	ToolName         string  `json:"tool_name"`
-	Score            float64 `json:"score"` // 0..1
+	Score            float64 `json:"score"`          // 0..1 readiness
+	MaxBaseScore     float64 `json:"max_base_score"` // 0..10 flat score of worst finding
 	FindingCount     int     `json:"finding_count"`
 	WeightedSeverity float64 `json:"weighted_severity"`
 }
@@ -171,5 +196,6 @@ type ScanResult struct {
 	Findings           []Finding           `json:"findings"`
 	Readiness          []ToolReadiness     `json:"readiness"`
 	OverallScore       float64             `json:"overall_score"`
+	RiskScore          float64             `json:"risk_score"` // 0..10 flat base score of worst finding in scan
 	GeneratedArtifacts []GeneratedArtifact `json:"generated_artifacts"`
 }

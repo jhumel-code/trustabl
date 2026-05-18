@@ -65,7 +65,7 @@ func Run(cfg Config) (models.ScanResult, error) {
 	}
 	findings := registry.Run(tools, parsed)
 
-	readiness, overall := analysis.Score(tools, findings)
+	readiness, overall, riskScore := analysis.Score(tools, findings)
 
 	// Generation. We always run both generators — empty findings just produce
 	// a defaults-only policy and an empty hook scaffolding, which is the
@@ -88,6 +88,7 @@ func Run(cfg Config) (models.ScanResult, error) {
 		Findings:           findings,
 		Readiness:          readiness,
 		OverallScore:       overall,
+		RiskScore:          riskScore,
 		GeneratedArtifacts: artifacts,
 	}, nil
 }

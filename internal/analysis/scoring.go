@@ -23,12 +23,14 @@ import (
 // score, the agent is as reliable as its weakest surface, so min is honest.
 const saturation = 3.0
 
-// Score returns per-tool readiness and the overall score.
-func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolReadiness, float64) {
+// Score returns per-tool readiness, the overall readiness score, and the
+// scan-level risk score (0–10 flat base score of the worst single finding).
+func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolReadiness, float64, float64) {
 	byTool := map[string]*models.ToolReadiness{}
 	for _, t := range tools {
 		byTool[t.Name] = &models.ToolReadiness{ToolName: t.Name, Score: 1.0}
 	}
+	var riskScore float64
 	for _, f := range findings {
 		r, ok := byTool[f.ToolName]
 		if !ok {
@@ -38,6 +40,12 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 		}
 		r.FindingCount++
 		r.WeightedSeverity += models.SeverityWeight(f.Severity) * f.Confidence
+		if bs := f.BaseScore(); bs > r.MaxBaseScore {
+			r.MaxBaseScore = bs
+		}
+		if bs := f.BaseScore(); bs > riskScore {
+			riskScore = bs
+		}
 	}
 
 	readiness := make([]models.ToolReadiness, 0, len(byTool))
@@ -57,7 +65,7 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 	})
 
 	if len(readiness) == 0 {
-		return readiness, 1.0
+		return readiness, 1.0, 0.0
 	}
 	min := readiness[0].Score
 	for _, r := range readiness[1:] {
@@ -65,5 +73,5 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 			min = r.Score
 		}
 	}
-	return readiness, min
+	return readiness, min, riskScore
 }
