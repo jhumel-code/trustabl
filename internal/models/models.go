@@ -217,8 +217,11 @@ type GeneratedArtifact struct {
 type ScanResult struct {
 	ScanID             string              `json:"scan_id"`
 	Repo               string              `json:"repo"`
+	Languages          []Language          `json:"languages"`     // detected by file extension (Phase 1)
+	SDKs               []SDK               `json:"sdks"`          // observed in code (Phase 2a)
 	Manifest           ScanManifest        `json:"manifest"`
 	Tools              []ToolDef           `json:"tools"`
+	Agents             []AgentDef          `json:"agents"`
 	Findings           []Finding           `json:"findings"`
 	Readiness          []ToolReadiness     `json:"readiness"`
 	OverallScore       float64             `json:"overall_score"`

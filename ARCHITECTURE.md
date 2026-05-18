@@ -412,8 +412,11 @@ AgentComponent {
 ScanResult {
     ScanID             string
     Repo               string
+    Languages          []Language          // Phase 1, by file extension
+    SDKs               []SDK               // Phase 2a, observed in code
     Manifest           ScanManifest
     Tools              []ToolDef
+    Agents             []AgentDef
     Findings           []Finding
     Readiness          []ToolReadiness
     OverallScore       float64

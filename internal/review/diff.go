@@ -45,7 +45,10 @@ func (r *Renderer) Render(result models.ScanResult) string {
 
 	fmt.Fprintf(&b, "%s\n", styleHeader.Render("Scan summary"))
 	fmt.Fprintf(&b, "  Repo:           %s\n", result.Repo)
+	fmt.Fprintf(&b, "  Languages:      %s\n", csv(result.Languages))
+	fmt.Fprintf(&b, "  SDKs:           %s\n", csv(result.SDKs))
 	fmt.Fprintf(&b, "  Tools found:    %d\n", len(result.Tools))
+	fmt.Fprintf(&b, "  Agents found:   %d\n", len(result.Agents))
 	fmt.Fprintf(&b, "  Findings:       %d\n", len(result.Findings))
 	sevTag := func(s models.Severity) string {
 		switch s {
@@ -74,6 +77,22 @@ func (r *Renderer) Render(result models.ScanResult) string {
 	}
 
 	fmt.Fprintf(&b, "  Overall score:  %s\n\n", scoreCell(result.OverallScore))
+
+	if len(result.Agents) > 0 {
+		b.WriteString(styleHeader.Render("Agents") + "\n")
+		for _, a := range result.Agents {
+			label := a.Class
+			if a.Name != "" {
+				label += " " + a.Name
+			}
+			loc := fmt.Sprintf("%s:%d", a.FilePath, a.Line)
+			if a.Opaque {
+				loc += " " + styleDim.Render("(opaque — rules cannot evaluate)")
+			}
+			fmt.Fprintf(&b, "  %-32s %s  %s\n", label, styleDim.Render(string(a.SDK)), loc)
+		}
+		b.WriteString("\n")
+	}
 
 	if len(result.Findings) == 0 {
 		b.WriteString(styleOK.Render("No findings. Nothing to commit.") + "\n")
@@ -118,6 +137,19 @@ func (r *Renderer) Render(result models.ScanResult) string {
 		}
 	}
 	return b.String()
+}
+
+// csv joins a list of string-like values for the summary header, or "(none)"
+// when empty so the line never renders blank.
+func csv[T ~string](items []T) string {
+	if len(items) == 0 {
+		return "(none)"
+	}
+	parts := make([]string, len(items))
+	for i, it := range items {
+		parts[i] = string(it)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // wrapAt is a deliberately dumb word-wrapper. The output is for humans on a

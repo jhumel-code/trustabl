@@ -90,8 +90,11 @@ func Run(cfg Config) (models.ScanResult, error) {
 	return models.ScanResult{
 		ScanID:             scanID(repoLabel, profile.Manifest),
 		Repo:               repoLabel,
+		Languages:          profile.Languages,
+		SDKs:               inventory.SDKsDetected,
 		Manifest:           profile.Manifest,
 		Tools:              tools,
+		Agents:             inventory.Agents,
 		Findings:           findings,
 		Readiness:          readiness,
 		OverallScore:       overall,
