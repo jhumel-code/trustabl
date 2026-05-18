@@ -36,25 +36,31 @@ func Run(cfg Config) (models.ScanResult, error) {
 	}
 	defer src.Cleanup()
 
-	manifest, err := ingestion.Normalize(src)
-	if err != nil {
-		return models.ScanResult{}, fmt.Errorf("normalize: %w", err)
+	repoLabel := src.RemoteURL
+	if repoLabel == "" {
+		repoLabel = src.RootPath
 	}
 
-	tools, parsed, err := analysis.DiscoverTools(manifest)
+	// Phase 1: reconnaissance (cheap, no AST)
+	profile, err := ingestion.Recon(src)
+	if err != nil {
+		return models.ScanResult{}, fmt.Errorf("recon: %w", err)
+	}
+
+	// Phase 2a: per-language inventory (Python only for now)
+	tools, parsed, err := analysis.DiscoverTools(profile.Manifest)
 	if err != nil {
 		return models.ScanResult{}, fmt.Errorf("discover: %w", err)
 	}
 
-	// Build a minimal RepoProfile and RepoInventory. Phase B will formalize
-	// Recon() for Phase 1; Phase C will add agent/guardrail/session discovery.
-	profile := models.RepoProfile{Manifest: manifest}
 	inventory := models.RepoInventory{
 		Tools:              tools,
-		Manifest:           manifest,
+		Manifest:           profile.Manifest,
+		SDKsDetected:       deriveSDKsDetected(tools, nil),
 		UsesDefaultTracing: computeUsesDefaultTracing(parsed),
 	}
 
+	// Phase 2b: policy selection (full implementation in Task 36)
 	registry, err := rules.LoadRegistry(rules.DefaultFS())
 	if err != nil {
 		return models.ScanResult{}, fmt.Errorf("load rules: %w", err)
@@ -62,33 +68,55 @@ func Run(cfg Config) (models.ScanResult, error) {
 	if len(cfg.Categories) > 0 {
 		registry = registry.Subset(cfg.Categories...)
 	}
+
+	// Phase 2c: analysis
 	findings := registry.Run(profile, inventory, parsed)
 
 	readiness, overall := analysis.Score(tools, findings)
-
-	// Generation. We always run both generators — empty findings just produce
-	// a defaults-only policy and an empty hook scaffolding, which is the
-	// honest output for a clean repo.
 	artifacts := append(
 		generation.GenerateHooks(findings),
 		generation.GeneratePolicy(findings, cfg.Version)...,
 	)
 
-	repoLabel := src.RemoteURL
-	if repoLabel == "" {
-		repoLabel = src.RootPath
-	}
-
 	return models.ScanResult{
-		ScanID:             scanID(repoLabel, manifest),
+		ScanID:             scanID(repoLabel, profile.Manifest),
 		Repo:               repoLabel,
-		Manifest:           manifest,
-		Tools:              inventory.Tools,
+		Manifest:           profile.Manifest,
+		Tools:              tools,
 		Findings:           findings,
 		Readiness:          readiness,
 		OverallScore:       overall,
 		GeneratedArtifacts: artifacts,
 	}, nil
+}
+
+// deriveSDKsDetected scans the inventory for tool/agent kinds that imply
+// a specific SDK is in use.
+func deriveSDKsDetected(tools []models.ToolDef, agents []models.AgentDef) []models.SDK {
+	seen := make(map[models.SDK]bool)
+	for _, t := range tools {
+		switch t.Kind {
+		case models.KindClaudeSDKTool:
+			seen[models.SDKClaudeAgentSDK] = true
+		case models.KindOpenAITool:
+			seen[models.SDKOpenAIAgents] = true
+		case models.KindMCPTool:
+			seen[models.SDKMCP] = true
+		case models.KindShellInvocation:
+			seen[models.SDKOpenShell] = true
+		}
+	}
+	for _, a := range agents {
+		if a.SDK != "" {
+			seen[a.SDK] = true
+		}
+	}
+	var out []models.SDK
+	for s := range seen {
+		out = append(out, s)
+	}
+	sort.Slice(out, func(i, j int) bool { return out[i] < out[j] })
+	return out
 }
 
 func computeUsesDefaultTracing(parsed []analysis.ParsedFile) bool {

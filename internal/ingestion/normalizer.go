@@ -10,6 +10,87 @@ import (
 	"github.com/trustabl/trustabl/internal/models"
 )
 
+// Recon is the Phase 1 entrypoint. It walks the source tree (cheap, no AST)
+// and returns a typed RepoProfile capturing languages, SDK deps, and the
+// existing ScanManifest.
+func Recon(src *Source) (models.RepoProfile, error) {
+	manifest, err := Normalize(src)
+	if err != nil {
+		return models.RepoProfile{}, err
+	}
+	langs := languagesFromManifest(manifest)
+	sdks := detectSDKDeps(src.RootPath)
+	return models.RepoProfile{
+		Languages: langs,
+		SDKDeps:   sdks,
+		Manifest:  manifest,
+	}, nil
+}
+
+func languagesFromManifest(m models.ScanManifest) []models.Language {
+	var langs []models.Language
+	if len(m.PythonFiles) > 0 {
+		langs = append(langs, models.LanguagePython)
+	}
+	if len(m.TypeScriptFiles) > 0 {
+		langs = append(langs, models.LanguageTypeScript)
+	}
+	if len(m.JavaScriptFiles) > 0 {
+		langs = append(langs, models.LanguageJavaScript)
+	}
+	return langs
+}
+
+// detectSDKDeps scans pyproject.toml / requirements.txt / Pipfile / poetry.lock /
+// package.json for known SDK package names.
+func detectSDKDeps(root string) []models.SDKDep {
+	type needle struct {
+		Name      string
+		Pattern   string
+		Manifests []string
+	}
+	needles := []needle{
+		{Name: "claude-agent-sdk", Pattern: "claude-agent-sdk",
+			Manifests: []string{"pyproject.toml", "requirements.txt", "Pipfile", "poetry.lock"}},
+		{Name: "claude-agent-sdk", Pattern: "claude_agent_sdk",
+			Manifests: []string{"pyproject.toml", "requirements.txt", "Pipfile", "poetry.lock"}},
+		{Name: "openai-agents", Pattern: "openai-agents",
+			Manifests: []string{"pyproject.toml", "requirements.txt", "Pipfile", "poetry.lock"}},
+		{Name: "openai-agents", Pattern: "@openai/agents",
+			Manifests: []string{"package.json"}},
+	}
+	seen := make(map[string]bool)
+	var out []models.SDKDep
+	for _, n := range needles {
+		for _, mfile := range n.Manifests {
+			path := filepath.Join(root, mfile)
+			b, err := os.ReadFile(path)
+			if err != nil {
+				continue
+			}
+			if strings.Contains(strings.ToLower(string(b)), n.Pattern) {
+				key := n.Name + "@" + mfile
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				out = append(out, models.SDKDep{
+					Name:       n.Name,
+					Source:     mfile,
+					Confidence: 0.9,
+				})
+			}
+		}
+	}
+	sort.Slice(out, func(i, j int) bool {
+		if out[i].Name != out[j].Name {
+			return out[i].Name < out[j].Name
+		}
+		return out[i].Source < out[j].Source
+	})
+	return out
+}
+
 // Normalize walks the source tree and produces a ScanManifest. It does NOT
 // parse any source language — that's the analysis layer's job. This is the
 // cheap pass: "what files are here, what agent components exist, and which

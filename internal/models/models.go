@@ -175,6 +175,7 @@ const (
 	SDKClaudeAgentSDK SDK = "claude_agent_sdk"
 	SDKOpenAIAgents   SDK = "openai_agents"
 	SDKMCP            SDK = "mcp"
+	SDKOpenShell      SDK = "openshell"
 )
 
 type SDKDep struct {

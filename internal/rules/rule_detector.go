@@ -63,10 +63,6 @@ func (d repoRuleDetector) Applies(p models.RepoProfile, inv models.RepoInventory
 				return true
 			}
 		}
-		// repo rules can also match on openshell presence via HasOpenShellArtifact
-		if k == "openshell" && inv.Manifest.HasOpenShellArtifact {
-			return true
-		}
 	}
 	return false
 }

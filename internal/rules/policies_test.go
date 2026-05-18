@@ -273,11 +273,13 @@ def fetch_resource() -> dict:
 // policyRepoRuleCases covers repo-scoped rules.
 var policyRepoRuleCases = []policyRepoCase{
 	// ─── OSH-004 no resource limits (repo-scoped) ────────────────────────────
-	{"OSH-004 fires when openshell artifact present", "OSH-004",
-		models.RepoProfile{Manifest: models.ScanManifest{HasOpenShellArtifact: true}},
-		models.RepoInventory{SDKsDetected: []models.SDK{}, Manifest: models.ScanManifest{HasOpenShellArtifact: true}},
+	// OSH-004 applies when SDKsDetected includes openshell (set by scanner when
+	// shell-invocation tools are found in the repo).
+	{"OSH-004 fires when openshell SDK detected", "OSH-004",
+		models.RepoProfile{},
+		models.RepoInventory{SDKsDetected: []models.SDK{models.SDKOpenShell}},
 		true},
-	{"OSH-004 silent when no openshell artifact", "OSH-004",
+	{"OSH-004 silent when no openshell SDK", "OSH-004",
 		models.RepoProfile{},
 		models.RepoInventory{},
 		false},
