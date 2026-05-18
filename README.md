@@ -1,7 +1,4 @@
-# karenctl
-
-> Temporary name. See note in the project tracker about renaming before this leaks
-> into commit history and screenshots.
+# trustabl
 
 Static analyzer for agent reliability. Scans a Claude Agent SDK repo, finds reliability
 weaknesses, emits committable artifacts (Pre/PostToolUse hook configs +
@@ -49,8 +46,11 @@ The following are intentionally stubbed and called out where they live:
 - **LLM enrichment** (`internal/inference/router.go`) — typed BYOK interface, no
   Anthropic call yet. Rule-based detectors run without it.
 - **Confidence scores** — heuristic, not LLM-judged.
-- **Detection-quality benchmark** — no corpus eval (§8 of the architecture doc says
-  you need 20–40 real agent repos before MVP is "done"; this is not that).
+- **Detection-quality benchmark** — no corpus eval. A 20–40 real-agent-repo
+  corpus with labelled findings is the MVP gate (see
+  [ARCHITECTURE.md §10](ARCHITECTURE.md#10-what-is-intentionally-out));
+  the three-layer test strategy in `internal/rules/` and `internal/scanner/`
+  is regression coverage, not detection-quality measurement.
 - **No web app, no API server, no GitHub Action.** This is the CLI surface only.
 
 ## Build
@@ -59,11 +59,11 @@ CGO is required because the Python AST parser uses tree-sitter:
 
 ```bash
 # macOS / Linux
-CGO_ENABLED=1 go build -o karenctl ./cmd/karenctl
+CGO_ENABLED=1 go build -o trustabl ./cmd/trustabl
 
 # Cross-compile: pick a C toolchain for the target. zig is the easiest.
 CGO_ENABLED=1 CC="zig cc -target x86_64-linux-gnu" \
-  GOOS=linux GOARCH=amd64 go build -o karenctl-linux ./cmd/karenctl
+  GOOS=linux GOARCH=amd64 go build -o trustabl-linux ./cmd/trustabl
 ```
 
 This is the cost of using tree-sitter for accurate Python parsing. If single-binary,
@@ -74,34 +74,35 @@ no-CGO distribution becomes a hard requirement later, swap the parser for
 
 ```bash
 # Local repo
-karenctl scan ./path/to/agent-repo
+trustabl scan ./path/to/agent-repo
 
 # GitHub repo (shallow clone to temp dir, removed on exit)
-karenctl scan https://github.com/org/repo
+trustabl scan https://github.com/org/repo
 
 # Restrict detectors
-karenctl scan ./repo --detectors claude_sdk
-karenctl scan ./repo --detectors openshell
-karenctl scan ./repo --detectors claude_sdk,openshell
+trustabl scan ./repo --detectors claude_sdk
+trustabl scan ./repo --detectors openshell
+trustabl scan ./repo --detectors claude_sdk,openshell
 
 # Apply generated artifacts (writes hooks/ and openshell/ into the repo;
 # requires --yes or interactive approval)
-karenctl scan ./repo --apply --yes
+trustabl scan ./repo --apply --yes
 
 # Export the bundle as a ZIP
-karenctl scan ./repo --export bundle.zip
+trustabl scan ./repo --export bundle.zip
 
 # JSON output (for CI piping)
-karenctl scan ./repo --format json
+trustabl scan ./repo --format json
 ```
 
 Exit codes: `0` = no findings ≥ medium, `1` = findings ≥ medium present, `2` =
-scanner error. Comment-only mode in CI never blocks — that's a paid-tier feature
-per architecture §6.
+scanner error. There is no built-in CI integration in this skeleton — pipe
+`--format json` to your own CI logic, or invoke `trustabl scan ./repo` and act
+on the exit code.
 
 ## Produced artifacts
 
-Per §4 of the architecture, the artifacts get committed to the user's repo:
+The generated artifacts get committed to the user's repo:
 
 ```
 <repo>/

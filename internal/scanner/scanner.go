@@ -1,7 +1,7 @@
 // Package scanner is the orchestration layer. It wires
 // ingestion → analysis → generation → review into one Run() call.
 //
-// Why split this out from cmd/karenctl: the CLI is one entry point. A future
+// Why split this out from cmd/trustabl: the CLI is one entry point. A future
 // HTTP server (architecture §1, Public API) or a unit test calls the same
 // Run() and treats it as a pure function over a Config.
 package scanner
@@ -13,11 +13,11 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/trustabl/karenctl/internal/analysis"
-	"github.com/trustabl/karenctl/internal/generation"
-	"github.com/trustabl/karenctl/internal/ingestion"
-	"github.com/trustabl/karenctl/internal/models"
-	"github.com/trustabl/karenctl/internal/rules"
+	"github.com/trustabl/trustabl/internal/analysis"
+	"github.com/trustabl/trustabl/internal/generation"
+	"github.com/trustabl/trustabl/internal/ingestion"
+	"github.com/trustabl/trustabl/internal/models"
+	"github.com/trustabl/trustabl/internal/rules"
 )
 
 // Config configures one scan. Zero-value is "scan everything, generate everything".

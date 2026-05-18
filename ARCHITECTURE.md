@@ -1,6 +1,6 @@
 # Architecture
 
-This document describes the concrete architecture of the karenctl codebase as it
+This document describes the concrete architecture of the trustabl codebase as it
 exists today. It is the implementer's reference: what each package owns, the
 data that crosses package boundaries, and the decisions that shaped the layout.
 
@@ -11,7 +11,7 @@ this file is scoped to the Go binary in this repository.
 
 ## 1. Goal
 
-karenctl scans a Claude Agent SDK repository, finds reliability weaknesses in
+trustabl scans a Claude Agent SDK repository, finds reliability weaknesses in
 its tool definitions, and emits committable artifacts that close those gaps:
 
 - `hooks/pretooluse_validate.py` and `hooks/posttooluse_log.py` — Claude Agent
@@ -26,7 +26,7 @@ scope for this skeleton (see `README.md` § Status).
 
 ## 1.1 Language scope
 
-karenctl ships with **Python tool discovery** wired in. The scanner can also
+trustabl ships with **Python tool discovery** wired in. The scanner can also
 recognize TypeScript, JavaScript, and Go *files* (they appear in
 `manifest.typescript_files` etc. and feed component discovery), but no AST
 parser for those languages is plumbed in yet — so no tools are extracted
@@ -121,6 +121,7 @@ tools. Component kinds:
 | `sandbox_policy`      | `openshell/*.yaml` / `openshell/*.yml`                         |
 | `system_prompt`       | `prompts/*.md`, `system_prompt.md`, `system_prompt.txt` (root) |
 | `dependency_manifest` | `pyproject.toml`, `requirements.txt`, `Pipfile`, `poetry.lock`, `package.json`, `go.mod` |
+| `claude_agent_definition` | Python file importing `claude_agent_sdk` AND containing an `AgentDefinition(` call |
 
 Each `AgentComponent` carries `Path` (relative to repo root, normalized to
 forward slashes) and `Language` (set for code components, empty for
@@ -140,14 +141,27 @@ Two-pass discovery over each Python file. tree-sitter is used because we need
 structural recognition (decorator nodes, function bodies, call shapes) rather
 than just text matching.
 
-1. **Decorated functions.** Any `decorated_definition` whose decorator text
-   contains `@tool`, `@claude_tool`, `@agent.tool`, `claude_agent_sdk` is a
-   `KindClaudeSDKTool`. `@server.tool`, `@mcp.tool`, `.register_tool` is a
-   `KindMCPTool`. These signals are conservative — when in doubt, return
-   `KindUnknown` and let the function be considered for shell discovery.
+1. **Decorated functions.** A `decorated_definition` is classified by the
+   decorator-substring matcher in `kindFromDecorators`:
+
+   | Pattern in decorator text         | ToolKind              | Notes                       |
+   | --------------------------------- | --------------------- | --------------------------- |
+   | `@function_tool` (any args)       | `KindOpenAITool`      | OpenAI Agents SDK           |
+   | `@tool`, `@claude_tool`, `@agent.tool`, `claude_agent_sdk` | `KindClaudeSDKTool` | Claude Agent SDK (pre-1.0 — names still in flux) |
+   | `@server.tool`, `@mcp.tool`, `.register_tool` | `KindMCPTool`         | MCP server registrations    |
+   | (none of the above)               | `KindUnknown`         | Falls through to shell pass |
+
+   Order matters: `@function_tool` is matched before `@tool` so the broader
+   substring doesn't capture the more specific OpenAI decorator. Discovery
+   is conservative — when in doubt, return `KindUnknown` and let the
+   function be considered for shell discovery.
+
 2. **Bare functions that shell out.** Any `function_definition` not already
    captured above whose body calls `subprocess.*`, `os.system`, or `os.popen`
    is a `KindShellInvocation`. These feed the OpenShell detectors.
+
+Each `ToolDef` carries `Language: python` (set unconditionally today —
+discovery is python-only).
 
 The function's docstring is extracted via `astutil.FunctionDocstring`, which
 calls `stripPythonStringLiteral` to handle prefixes (r/b/u/f and 2-char
@@ -231,10 +245,14 @@ place so the curve can be tuned without touching detectors.
 
 ### Stage 6 — Generation ([internal/generation/](internal/generation/))
 
-Two generators, both deterministic by contract. Same findings → byte-identical
-output. The smoke test in [scanner_test.go](internal/scanner/scanner_test.go)
-runs the full pipeline twice on the sample agent and asserts artifact
-byte-equality; this guards the contract from regressions.
+Two generators, both deterministic by contract: same findings → byte-identical
+output. The contract is enforced by the generators themselves (sorted tool
+names, sorted findings by `RuleID`, deduped global-deny entries before
+marshaling). There is no dedicated regression test asserting byte-equality —
+the smoke test was refactored to the examples-corpus sweep (see §6), which
+checks "doesn't crash on real-world inputs" rather than artifact stability.
+Adding a focused determinism test is open work; the §7 contract relies on
+generator discipline in the meantime.
 
 - **Hooks** ([hooks.go](internal/generation/hooks.go)) — emits
   `hooks/pretooluse_validate.py` (per-tool validators behind a dispatch table)
@@ -279,7 +297,7 @@ JSON tags, because `ScanResult` is the contract for `--format json` CI output.
 
 ```go
 ScanResult {
-    ScanID             string             // sha256(repo + sorted python file list)[:16]
+    ScanID             string             // "scan_" + sha256(repo + sorted python file list)[:8] hex (16 chars)
     Repo               string
     Manifest           ScanManifest       // what the normalizer found
     Tools              []ToolDef          // discovery output
@@ -299,7 +317,7 @@ ScanManifest {
 
 ToolDef {
     Name           string
-    Kind           ToolKind          // claude_sdk_tool | mcp_tool | shell_invocation | unknown
+    Kind           ToolKind          // claude_sdk_tool | openai_tool | mcp_tool | shell_invocation | unknown
     Language       Language          // python | typescript | javascript | go
     FilePath, Line, EndLine ...
     Description    string
@@ -341,7 +359,7 @@ Discipline rules:
 ## 4. Package layout
 
 ```
-cmd/karenctl/                    CLI entry point (cobra). main.go only.
+cmd/trustabl/                    CLI entry point (cobra). main.go only.
 internal/
 ├── models/                      Cross-boundary types. JSON-tagged. Zero deps.
 ├── ingestion/                   Importer + Normalizer.
@@ -441,6 +459,11 @@ rules:
 4. If your rule needs a primitive the schema does not yet expose, extend
    `MatchExpr` in `schema.go` and add a corresponding `Pred*` function in
    `predicates.go`. The evaluator wires them together by name.
+5. Add at least one fire case and one silent case for the new rule to
+   `policyRuleCases` in
+   [internal/rules/policies_test.go](internal/rules/policies_test.go). The
+   `TestPolicyRules_AllRulesCovered` guard fails at build time if a shipped
+   rule has no test coverage — this is contract, not best practice.
 
 ### Evaluator semantics ([evaluator.go](internal/rules/evaluator.go))
 
@@ -494,16 +517,41 @@ agnostic to where a rule comes from.
 
 ---
 
-## 6. Determinism contract
+## 6. Test strategy
 
-Two invariants are load-bearing for the user-facing experience and are tested:
+Coverage is split across three layers, each with a focused contract:
+
+1. **Predicate unit tests** ([predicates_test.go](internal/rules/predicates_test.go)).
+   Each `Pred*` function in
+   [internal/rules/predicates.go](internal/rules/predicates.go) is
+   exercised against tiny Python snippets — the AST building blocks are
+   verified in isolation.
+2. **Per-rule fire/silent tests** ([policies_test.go](internal/rules/policies_test.go)).
+   A table of `policyRuleCases` drives one fire and one silent case per
+   shipped rule, loading the actual YAML via `rules.Load(rules.DefaultFS())`.
+   `TestPolicyRules_AllRulesCovered` fails if any shipped rule lacks an
+   entry — adding a rule without test cases is therefore a build failure.
+3. **End-to-end sweep** ([scanner_test.go](internal/scanner/scanner_test.go)).
+   `TestScanExamples_NoCrash` walks every immediate subdirectory of
+   `examples/` (skipping the `ToolBench` dataset) and runs `scanner.Run`
+   on each. It asserts no error and a populated manifest — *not* specific
+   findings. The point is regression coverage: weird real-world code
+   shouldn't panic the discovery pass.
+
+Real-world examples in `examples/` are NOT a controlled fixture and are
+not expected to trigger every rule. Per-rule correctness lives in
+`policies_test.go`.
+
+## 7. Determinism contract
+
+Two invariants are load-bearing for the user-facing experience:
 
 1. **Same inputs → same `ScanID`.** Derived from a sorted file list, so file
    ordering from the OS walk does not leak into the ID.
 2. **Same findings → byte-identical generated artifacts.** Generators sort
    tool names, sort findings by `RuleID`, and dedupe global deny entries by
-   `(RuleID, Reason)` before marshaling. `TestScanSampleAgent` runs the full
-   pipeline twice and asserts equality.
+   `(RuleID, Reason)` before marshaling. `Components` are sorted by
+   `(Kind, Path)` for the same reason.
 
 This matters because users commit the generated files. A non-deterministic
 generator means a user sees spurious diffs on every CI run, which trains them
@@ -511,14 +559,14 @@ to ignore the diff entirely.
 
 ---
 
-## 7. CLI surface ([cmd/karenctl/main.go](cmd/karenctl/main.go))
+## 8. CLI surface ([cmd/trustabl/main.go](cmd/trustabl/main.go))
 
 ```
-karenctl scan <target> [--detectors=…] [--format=human|json]
+trustabl scan <target> [--detectors=…] [--format=human|json]
                        [--apply [--yes] [--overwrite]]
                        [--export=path.zip]
                        [--strict] [--no-color]
-karenctl version
+trustabl version
 ```
 
 Exit codes:
@@ -533,7 +581,7 @@ the boundary is intentionally narrow.
 
 ---
 
-## 8. Build constraint: CGO
+## 9. Build constraint: CGO
 
 tree-sitter is a C library, so `CGO_ENABLED=1` is required. `README.md`
 documents zig-cc as the easiest cross-compile path. If single-binary,
@@ -544,16 +592,18 @@ take it absent a concrete distribution requirement.
 
 ---
 
-## 9. What is intentionally out
+## 10. What is intentionally out
 
 - **No LLM enrichment yet.** `internal/inference/router.go` defines the BYOK
   interface and an in-process cache; `Call()` returns `ErrLLMDisabled` when
   no API key is set. The planned first target is upgrading low-confidence
   rule-based hits to confirmed findings (CSDK-005 raw-exception detection is
   the highest-leverage rule for this).
-- **No corpus-eval benchmark.** The architecture doc § 8 calls for 20–40
-  real agent repos before MVP is "done". This skeleton ships rule-based
-  detectors and a single-fixture smoke test; that is not the corpus eval.
+- **No corpus-eval benchmark.** Detection quality measured on a 20–40
+  real-agent-repo corpus is the MVP gate. This skeleton ships rule-based
+  detectors with three-layer test coverage (see §6) — that is not the
+  corpus eval, which requires labelled-finding ground truth on real
+  repos.
 - **No web app, no API server, no GitHub Action.** CLI-only.
 - **Per-finding interactive accept/edit/reject.** `--apply --yes` is the CLI
   equivalent of accept-all; richer UX waits for a host that can render it.

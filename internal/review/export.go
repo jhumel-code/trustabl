@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // ExportZIP packages the generated artifacts into a single ZIP at outPath.

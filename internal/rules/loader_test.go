@@ -6,7 +6,7 @@ import (
 	"testing"
 	"testing/fstest"
 
-	"github.com/trustabl/karenctl/internal/rules"
+	"github.com/trustabl/trustabl/internal/rules"
 )
 
 // validYAML is a minimal valid policy file for loader tests.

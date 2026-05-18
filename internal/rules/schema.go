@@ -1,6 +1,6 @@
 package rules
 
-import "github.com/trustabl/karenctl/internal/models"
+import "github.com/trustabl/trustabl/internal/models"
 
 // PolicyFile is the top-level structure of a .yaml policy file.
 type PolicyFile struct {

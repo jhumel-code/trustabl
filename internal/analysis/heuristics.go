@@ -5,8 +5,8 @@ import (
 
 	sitter "github.com/smacker/go-tree-sitter"
 
-	"github.com/trustabl/karenctl/internal/analysis/astutil"
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/analysis/astutil"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // FindFunctionNode locates the function_definition node for a tool inside its

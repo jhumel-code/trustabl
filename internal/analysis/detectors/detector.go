@@ -11,8 +11,8 @@
 package detectors
 
 import (
-	"github.com/trustabl/karenctl/internal/analysis"
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/analysis"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // Detector is the unit of analysis. One instance per rule.

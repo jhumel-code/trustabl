@@ -1,8 +1,8 @@
 package rules
 
 import (
-	"github.com/trustabl/karenctl/internal/analysis"
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/analysis"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // Evaluate walks a MatchExpr and returns whether the tool matches it.

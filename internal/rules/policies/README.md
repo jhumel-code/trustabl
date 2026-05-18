@@ -1,4 +1,4 @@
-# karenctl detection policies
+# trustabl detection policies
 
 Every `.yaml` file under this directory defines one or more detection rules.
 The contents are embedded into the binary at build time
@@ -47,10 +47,10 @@ Every accepted field is documented with annotations in
    file on omission.
 4. Pick a fresh rule ID using the `<CATEGORY-NNN>` convention. The loader
    rejects duplicates across all policy files.
-5. Add a triggering Python function to
-   [`examples/sample_agent/tools.py`](../../../examples/sample_agent/tools.py)
-   and add the rule ID to `expectedRules` in
-   [`internal/scanner/scanner_test.go`](../../scanner/scanner_test.go).
+5. Add at least one fire case and one silent case for the new rule to
+   `policyRuleCases` in [`../policies_test.go`](../policies_test.go). The
+   `TestPolicyRules_AllRulesCovered` guard fails at build time if a shipped
+   rule has no test coverage — this is contract, not best practice.
 6. Run `go test ./...` from the repo root.
 
 ## When you need a primitive that does not exist yet
@@ -75,6 +75,35 @@ a silent gap.
 - Errors are batched via `errors.Join` so you see every problem in one run.
 - Cross-file rule-ID uniqueness is enforced with a "previously defined in
   X" message.
+
+## SDK scope per rule
+
+A rule declares which tool kinds it applies to via `applies_to`. The shipped
+kinds are:
+
+| Kind               | Discovered when                                                  |
+| ------------------ | ---------------------------------------------------------------- |
+| `claude_sdk_tool`  | Function decorated with `@tool` / `@claude_tool` / `claude_agent_sdk` (substring) |
+| `openai_tool`      | Function decorated with `@function_tool` (OpenAI Agents SDK)     |
+| `mcp_tool`         | Function decorated with `@server.tool` / `@mcp.tool` / `.register_tool` |
+| `shell_invocation` | Bare function whose body calls `subprocess.*` / `os.system` / `os.popen` |
+| `unknown`          | Fallback — rarely useful in `applies_to`                         |
+
+**Be honest about scope.** It is tempting to add every kind to `applies_to`
+because the AST pattern is the same — an HTTP call without `timeout=` is
+the same shape regardless of which SDK calls it. Resist this. A rule's
+`explanation` and `fix` text usually references a specific SDK ("the Claude
+Agent SDK uses the docstring as the description shown to the model";
+"`pretooluse_validate` hook can inject the timeout"). Listing a kind whose
+SDK doesn't match makes the user-facing text lie.
+
+If a pattern truly applies cross-SDK, author one rule per SDK with the
+framing each SDK requires (different `explanation` references, different
+`fix_hints`). Duplication of the predicate is the price of honest framing.
+
+The shipped `policies/claude_sdk/` rules are intentionally Claude-SDK-only
+for this reason. OpenAI Agents SDK rules will live in their own
+`policies/openai_sdk/` directory when authored.
 
 ## Language scope
 
@@ -105,7 +134,8 @@ anything else.
 ## Confidence guidance
 
 `confidence` is your estimate of how often this rule's match is the *real*
-problem versus a false positive. Calibrated against the sample fixture:
+problem versus a false positive. Calibration is by author judgement until
+a corpus eval lands:
 
 - `>= 0.9` — high-precision pattern (e.g. `shell=True` is unambiguous).
 - `0.7–0.9` — heuristic with known false-positive shapes.
@@ -125,6 +155,9 @@ authoring:
 - Don't write predicates that depend on map iteration order.
 - The `fix_hints` map is sorted on serialization; safe to use freely.
 
-The smoke test
-[`internal/scanner/scanner_test.go`](../../scanner/scanner_test.go) runs
-two full scans and asserts artifact byte-equality. Don't disable it.
+There is no dedicated byte-equality regression test today — the smoke test
+[`internal/scanner/scanner_test.go`](../../scanner/scanner_test.go) was
+refactored to the examples-corpus sweep, which checks "doesn't crash on
+real-world inputs" rather than artifact stability. Adding a focused
+determinism test is open work; in the meantime, the contract relies on
+generator discipline (sorted inputs before marshaling).

@@ -1,4 +1,4 @@
-# Instructions for Claude — karenctl
+# Instructions for Claude — trustabl
 
 This file captures durable architectural commitments that span the whole
 codebase. Per-area conventions live in nested CLAUDE.md files (see
@@ -10,11 +10,10 @@ This file is for principles; ARCHITECTURE.md is for facts.
 
 ## Project naming
 
-In external docs, status reports, and user-facing surfaces, refer to this
-project as **"Trustabl CLI tool"**. The codename `karenctl` is internal and
-temporary — do not leak it into PR descriptions, generated docs, or status
-reports. The Go module path (`github.com/trustabl/karenctl`) will be
-renamed in a dedicated PR; do not rename ad hoc.
+The project is **trustabl** — the binary, the CLI command, and the Go
+module path (`github.com/trustabl/trustabl`) all use this name. In
+external docs and status reports, refer to it as "trustabl CLI tool"
+or just "trustabl".
 
 ## Detection model: three scopes
 
@@ -110,7 +109,7 @@ Rules:
   inventory. Do not eagerly load every embedded YAML.
 - For each SDK in `inventory.SDKsDetected` that has **no policy pack
   shipped**, emit one `info`-level finding: *"this repo uses SDK X,
-  which karenctl does not currently audit."* This is the honest
+  which trustabl does not currently audit."* This is the honest
   unaudited signal — silence on an unknown SDK is wrong.
 - For each SDK declared as a dep but with no observed code use, emit
   a different `info`-level finding noting the dep is unused (low

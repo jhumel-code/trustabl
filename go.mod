@@ -1,4 +1,4 @@
-module github.com/trustabl/karenctl
+module github.com/trustabl/trustabl
 
 go 1.22
 

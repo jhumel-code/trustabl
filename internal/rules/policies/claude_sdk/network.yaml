@@ -15,7 +15,6 @@ rules:
     language: python
     applies_to:
       - claude_sdk_tool
-      - openai_tool
       - mcp_tool
     singleton: false
     match:

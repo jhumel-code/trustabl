@@ -3,7 +3,7 @@ package analysis
 import (
 	"sort"
 
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // Score computes per-tool readiness percentages and an overall score for the repo.

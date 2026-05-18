@@ -20,11 +20,18 @@ Do not skip step 1.
 - **Never change a rule's `id` after it has shipped.** IDs are external
   identifiers; downstream consumers cite them.
 - **Never duplicate a rule ID across files.** The loader rejects this at
-  startup; the smoke test catches it faster — run `go test ./...`.
-- **Never silence the smoke test** in
-  [`../../scanner/scanner_test.go`](../../scanner/scanner_test.go) to make a
-  rule "work". If the test fails after your edit, fix the rule or fix the
-  fixture. Do not delete the assertion.
+  startup; per-rule tests catch it faster — run `go test ./...`.
+- **Never widen `applies_to` across SDKs casually.** A rule's
+  `explanation` / `fix` / `fix_hints` text is usually SDK-specific. Adding
+  `openai_tool` to a Claude-SDK rule (or vice versa) makes the user-facing
+  text lie. If a cross-SDK pattern is genuinely needed, author a separate
+  rule under that SDK's category (`policies/<sdk>_sdk/<topic>.yaml`) with
+  framing that matches the target SDK.
+- **Never silence the per-rule test suite** in
+  [`policies_test.go`](../policies_test.go). The
+  `TestPolicyRules_AllRulesCovered` test fails when a shipped rule has no
+  fire/silent case in `policyRuleCases`; that's the contract that keeps
+  every shipped rule honest. Add the test cases, don't remove the check.
 - **Never write rules at `info` severity.** Reserved.
 
 ## Required fields per rule
@@ -52,42 +59,48 @@ Default sequence:
    the user before creating new ones.
 4. Write the rule. Match the explanation/fix tone of nearby rules — a
    paragraph, plain language, names the consequence and the fix concretely.
-5. Add a triggering function to
-   [`../../../examples/sample_agent/tools.py`](../../../examples/sample_agent/tools.py)
-   with a comment listing which rules it triggers.
-6. Add the new rule ID to `expectedRules` in
-   [`../../scanner/scanner_test.go`](../../scanner/scanner_test.go).
-7. Run `go test ./...`.
+5. Add at minimum one fire case AND one silent case to `policyRuleCases`
+   in [`../policies_test.go`](../policies_test.go). The
+   `TestPolicyRules_AllRulesCovered` guard requires every shipped rule to
+   appear in this table.
+6. Run `go test ./...`.
+
+The `examples/` directory is a real-agent corpus, not a controlled
+fixture. The scanner sweep over `examples/*` only asserts no crash — it
+does NOT assert that any specific rule fires there. Per-rule fire/silent
+correctness is the job of `policies_test.go`.
 
 ## "Remove a rule"
 
 1. Delete the rule entry from its YAML file. If the file is now empty,
    delete the file.
-2. Remove the rule ID from `expectedRules` in
-   [`../../scanner/scanner_test.go`](../../scanner/scanner_test.go).
-3. Remove the corresponding triggering function from the sample agent IF
-   nothing else relies on it.
-4. Run `go test ./...`.
+2. Remove all matching cases from `policyRuleCases` in
+   [`../policies_test.go`](../policies_test.go).
+3. Run `go test ./...`.
 
 ## "Change a rule's severity / confidence / explanation"
 
 In-place edit. No fixture changes required. Run `go test ./...` — the
 smoke test only asserts that rules fire, not what severity they fire at.
 
-## When the smoke test fails after you add a rule
+## When the per-rule test fails after you add a rule
 
-The smoke test
-([`../../scanner/scanner_test.go`](../../scanner/scanner_test.go)) asserts
-every rule in `expectedRules` fires at least once on the sample agent.
-Two valid responses:
+[`../policies_test.go`](../policies_test.go) drives a fire/silent case
+table for every shipped rule. Two failure modes and what they mean:
 
-1. The rule SHOULD fire — extend
-   [`../../../examples/sample_agent/tools.py`](../../../examples/sample_agent/tools.py)
-   with a function that triggers it. Update the comment at the top of that
-   function.
-2. The rule legitimately doesn't apply to the sample agent (rare; usually
-   means the rule targets a category not represented). Document why in a
-   comment in `scanner_test.go` next to the omission.
+1. **`TestPolicyRules / "RULE-ID fires on ..."` failed** — your rule
+   matched a snippet that should have triggered it but didn't. Walk the
+   `match:` expression against the snippet by hand; usually a predicate
+   set to `true`/`false` is inverted, or `applies_to` is missing the
+   ToolKind your test uses.
+2. **`TestPolicyRules_AllRulesCovered` failed** with your rule ID listed
+   as missing — you added a rule but no entry in `policyRuleCases`. Fix
+   by adding at least one fire case and one silent case for that rule ID.
+
+The examples sweep in
+[`../../scanner/scanner_test.go`](../../scanner/scanner_test.go) only
+checks the scanner doesn't crash; it does not assert findings. Don't
+expect rule failures to surface there.
 
 ## Output discipline for explanation/fix text
 

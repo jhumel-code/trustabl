@@ -1,4 +1,4 @@
-# karenctl rule schema — annotated reference
+# trustabl rule schema — annotated reference
 #
 # This file documents every field accepted by the YAML rules engine. It is
 # DOCUMENTATION, not a runtime policy: it lives outside policies/ so the
@@ -61,9 +61,17 @@ rules:
 
     applies_to:                             # REQUIRED. Non-empty list of ToolKind strings:
       - claude_sdk_tool                     #   claude_sdk_tool   — @tool / @claude_tool / claude_agent_sdk
-      - mcp_tool                            #   mcp_tool          — @server.tool / @mcp.tool / .register_tool
+      - mcp_tool                            #   openai_tool       — OpenAI Agents SDK @function_tool
+                                            #   mcp_tool          — @server.tool / @mcp.tool / .register_tool
                                             #   shell_invocation  — bare functions calling subprocess.* / os.system
                                             #   unknown           — fallback; rarely useful
+                                            #
+                                            # Be honest about scope: a rule's explanation/fix text
+                                            # often references a specific SDK ("the Claude Agent SDK
+                                            # uses the docstring as ..."). Only list a kind in
+                                            # applies_to if the rule's user-facing text is correct
+                                            # for that kind. Cross-SDK rules belong in their own
+                                            # SDK-specific policy file with their own framing.
 
     singleton: false                        # OPTIONAL (default false). If true, the rule fires AT MOST
                                             # once per scan, against the first applicable tool. Use for

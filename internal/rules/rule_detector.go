@@ -3,9 +3,9 @@ package rules
 import (
 	"io/fs"
 
-	"github.com/trustabl/karenctl/internal/analysis"
-	"github.com/trustabl/karenctl/internal/analysis/detectors"
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/analysis"
+	"github.com/trustabl/trustabl/internal/analysis/detectors"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // RuleDetector adapts a YAML-loaded RuleDef into a detectors.Detector. One

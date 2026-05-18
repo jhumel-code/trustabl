@@ -5,9 +5,9 @@ import (
 
 	sitter "github.com/smacker/go-tree-sitter"
 
-	"github.com/trustabl/karenctl/internal/analysis"
-	"github.com/trustabl/karenctl/internal/analysis/astutil"
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/analysis"
+	"github.com/trustabl/trustabl/internal/analysis/astutil"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // ─── bool predicates ─────────────────────────────────────────────────────────

@@ -5,7 +5,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/trustabl/karenctl/internal/rules"
+	"github.com/trustabl/trustabl/internal/rules"
 )
 
 func TestSchemaUnmarshal_BasicRule(t *testing.T) {

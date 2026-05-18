@@ -1,9 +1,9 @@
-// Command karenctl is the CLI entry point.
+// Command trustabl is the CLI entry point.
 //
 // Subcommands:
 //
-//	karenctl scan <target> [flags]   primary command: scan a repo
-//	karenctl version                 print version
+//	trustabl scan <target> [flags]   primary command: scan a repo
+//	trustabl version                 print version
 //
 // Exit codes:
 //
@@ -21,9 +21,9 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/trustabl/karenctl/internal/models"
-	"github.com/trustabl/karenctl/internal/review"
-	"github.com/trustabl/karenctl/internal/scanner"
+	"github.com/trustabl/trustabl/internal/models"
+	"github.com/trustabl/trustabl/internal/review"
+	"github.com/trustabl/trustabl/internal/scanner"
 )
 
 var version = "0.1.0-skeleton"
@@ -37,13 +37,10 @@ func (e exitCodeError) Error() string { return "" }
 
 func main() {
 	rootCmd := &cobra.Command{
-		Use:   "karenctl",
+		Use:   "trustabl",
 		Short: "Static analyzer for agent reliability",
-		Long: "karenctl scans Claude Agent SDK repos for reliability weaknesses\n" +
-			"and emits committable hook configs + OpenShell sandbox policies.\n" +
-			"\n" +
-			"NOTE: 'karenctl' is a temporary product name. Rename before this leaks\n" +
-			"into commit history / package metadata.",
+		Long: "trustabl scans Claude Agent SDK repos for reliability weaknesses\n" +
+			"and emits committable hook configs + OpenShell sandbox policies.",
 		SilenceUsage:  true,
 		SilenceErrors: true, // we handle error printing ourselves below
 	}
@@ -65,7 +62,7 @@ func newVersionCommand() *cobra.Command {
 		Use:   "version",
 		Short: "Print version",
 		Run: func(_ *cobra.Command, _ []string) {
-			fmt.Println("karenctl", version)
+			fmt.Println("trustabl", version)
 		},
 	}
 }

@@ -73,7 +73,7 @@ func openLocal(target string) (*Source, error) {
 }
 
 func cloneRemote(remoteURL string) (*Source, error) {
-	tmp, err := os.MkdirTemp("", "karenctl-clone-*")
+	tmp, err := os.MkdirTemp("", "trustabl-clone-*")
 	if err != nil {
 		return nil, fmt.Errorf("mktmp: %w", err)
 	}

@@ -6,7 +6,7 @@ import (
 
 	"gopkg.in/yaml.v3"
 
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // GeneratePolicy emits openshell/policy.yaml from OSH-* findings.
@@ -113,7 +113,7 @@ func buildDefaultsOnlyPolicy(version string) policyDoc {
 		Kind:       "SandboxPolicy",
 		Metadata: policyMeta{
 			Name:        "agent-policy",
-			GeneratedBy: "karenctl@" + version,
+			GeneratedBy: "trustabl@" + version,
 		},
 		Spec: policySpec{
 			Defaults: policyDefaults{
@@ -189,7 +189,7 @@ func marshalPolicy(doc policyDoc) string {
 	if err != nil {
 		// yaml.Marshal of a known shape shouldn't fail; if it does, emit a
 		// visible error rather than panicking the CLI.
-		return fmt.Sprintf("# karenctl: failed to marshal policy: %v\n", err)
+		return fmt.Sprintf("# trustabl: failed to marshal policy: %v\n", err)
 	}
 	return string(b)
 }

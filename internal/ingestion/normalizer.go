@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/trustabl/karenctl/internal/models"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // Normalize walks the source tree and produces a ScanManifest. It does NOT
@@ -236,6 +236,25 @@ func discoverComponents(root string, m models.ScanManifest) []models.AgentCompon
 		if exists(filepath.Join(root, name)) {
 			out = append(out, models.AgentComponent{
 				Kind: models.ComponentDependencyManifest, Path: name, Language: lang,
+			})
+		}
+	}
+
+	// Claude Agent SDK AgentDefinition usage. Scan each Python file for a
+	// constructor call to AgentDefinition; this is the cheapest reliable
+	// signal of subagent composition, which our tool-decorator discovery
+	// otherwise misses entirely. Substring-only — we accept a small false-
+	// positive risk (e.g. a comment containing "AgentDefinition(") in
+	// exchange for not parsing every Python file twice.
+	for _, p := range m.PythonFiles {
+		b, err := os.ReadFile(filepath.Join(root, p))
+		if err != nil {
+			continue
+		}
+		s := string(b)
+		if strings.Contains(s, "AgentDefinition(") && strings.Contains(s, "claude_agent_sdk") {
+			out = append(out, models.AgentComponent{
+				Kind: models.ComponentClaudeAgentDefinition, Path: p, Language: models.LanguagePython,
 			})
 		}
 	}

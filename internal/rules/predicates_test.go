@@ -3,10 +3,10 @@ package rules_test
 import (
 	"testing"
 
-	"github.com/trustabl/karenctl/internal/analysis"
-	"github.com/trustabl/karenctl/internal/analysis/astutil"
-	"github.com/trustabl/karenctl/internal/models"
-	"github.com/trustabl/karenctl/internal/rules"
+	"github.com/trustabl/trustabl/internal/analysis"
+	"github.com/trustabl/trustabl/internal/analysis/astutil"
+	"github.com/trustabl/trustabl/internal/models"
+	"github.com/trustabl/trustabl/internal/rules"
 )
 
 // parsePy parses a Python snippet and returns ParsedFile + ToolDef for the
@@ -39,6 +39,7 @@ func parsePy(t *testing.T, src string, kind models.ToolKind) (models.ToolDef, an
 	tool := models.ToolDef{
 		Name:           name,
 		Kind:           kind,
+		Language:       models.LanguagePython,
 		FilePath:       pf.RelPath,
 		Line:           astutil.NodeLine(fn),
 		EndLine:        astutil.NodeEndLine(fn),

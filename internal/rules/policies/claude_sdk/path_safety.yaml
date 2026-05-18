@@ -15,7 +15,6 @@ rules:
     language: python
     applies_to:
       - claude_sdk_tool
-      - openai_tool
       - mcp_tool
     singleton: false
     # call_uses_unnormalized_path_param is per-param: a tool with two path
