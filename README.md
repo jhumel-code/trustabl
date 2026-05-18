@@ -25,6 +25,25 @@ extracted from them. The rule schema's `language:` field is in place for
 multi-language rule sets when those parsers ship. See
 [ARCHITECTURE.md § 1.1](ARCHITECTURE.md#11-language-scope).
 
+**SDK coverage.** Tool-decorator discovery currently recognizes Claude Agent
+SDK (`@tool`, `@claude_tool`, `claude_agent_sdk`), OpenAI Agents SDK
+(`@function_tool`), and MCP server registrations (`@server.tool`,
+`@mcp.tool`, `.register_tool`). Shipped detection rules in
+`internal/rules/policies/claude_sdk/` are scoped to Claude Agent SDK
+specifically — their `explanation` and `fix` text references SDK-specific
+mechanisms. OpenAI Agents SDK tools are discovered (`kind: openai_tool`)
+and listed in `manifest.tools`, but no OpenAI-framed rules are shipped yet
+— author them in `internal/rules/policies/openai_sdk/` when needed.
+
+**Test contract.** The `examples/` directory holds real-world agent code
+(Claude SDK demos, OpenAI Agents SDK demos, etc.). It is a corpus, not a
+controlled fixture — well-written agents won't trigger most rules, and
+that's correct. Per-rule fire/silent correctness lives in
+[`internal/rules/policies_test.go`](internal/rules/policies_test.go); the
+end-to-end sweep in
+[`internal/scanner/scanner_test.go`](internal/scanner/scanner_test.go) only
+asserts the scanner doesn't crash on real-world inputs.
+
 The following are intentionally stubbed and called out where they live:
 
 - **LLM enrichment** (`internal/inference/router.go`) — typed BYOK interface, no
