@@ -273,6 +273,6 @@ type ScanResult struct {
 	Findings           []Finding           `json:"findings"`
 	Readiness          []ToolReadiness     `json:"readiness"`
 	OverallScore       float64             `json:"overall_score"`
-	RiskScore          float64             `json:"risk_score"` // 0–100 flat base score of worst finding
+	ReadinessScore     float64             `json:"readiness_score"` // 0–100 flat base score of worst finding
 	GeneratedArtifacts []GeneratedArtifact `json:"generated_artifacts"`
 }

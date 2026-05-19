@@ -24,20 +24,20 @@ import (
 const saturation = 3.0
 
 // Score returns per-tool readiness, the overall readiness score, and the
-// scan-level risk score (0–10 flat base score of the worst single finding).
+// scan-level readiness score (0–100 flat base score of the worst single finding).
 func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolReadiness, float64, float64) {
 	byTool := map[string]*models.ToolReadiness{}
 	for _, t := range tools {
 		byTool[t.Name] = &models.ToolReadiness{ToolName: t.Name, Score: 1.0}
 	}
-	var riskScore float64
+	var readinessScore float64
 	for _, f := range findings {
-		if bs := f.BaseScore(); bs > riskScore {
-			riskScore = bs
+		if bs := f.BaseScore(); bs > readinessScore {
+			readinessScore = bs
 		}
 		if f.ToolName == "" {
 			// Agent/repo-scoped findings have no tool attribution — count toward
-			// riskScore but do not create a blank per-tool readiness entry.
+			// readinessScore but do not create a blank per-tool readiness entry.
 			continue
 		}
 		r, ok := byTool[f.ToolName]
@@ -78,5 +78,5 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 			min = r.Score
 		}
 	}
-	return readiness, min, riskScore
+	return readiness, min, readinessScore
 }

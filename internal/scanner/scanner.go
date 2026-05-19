@@ -83,7 +83,7 @@ func Run(cfg Config) (models.ScanResult, error) {
 	ruleFindings := registry.Run(profile, inventory, parsed)
 	findings := append(metaFindings, ruleFindings...)
 
-	readiness, overall, riskScore := analysis.Score(tools, findings)
+	readiness, overall, readinessScore := analysis.Score(tools, findings)
 	artifacts := append(
 		generation.GenerateHooks(findings),
 		generation.GeneratePolicy(findings, cfg.Version)...,
@@ -100,7 +100,7 @@ func Run(cfg Config) (models.ScanResult, error) {
 		Findings:           findings,
 		Readiness:          readiness,
 		OverallScore:       overall,
-		RiskScore:          riskScore,
+		ReadinessScore:     readinessScore,
 		GeneratedArtifacts: artifacts,
 	}, nil
 }

@@ -91,7 +91,7 @@ func (r *Renderer) Render(result models.ScanResult) string {
 	}
 
 	fmt.Fprintf(&b, "  Overall score:  %s\n", scoreCell(result.OverallScore))
-	fmt.Fprintf(&b, "  Risk score:     %s\n\n", riskCell(result.RiskScore))
+	fmt.Fprintf(&b, "  Readiness score: %s\n\n", riskCell(result.ReadinessScore))
 
 	if len(result.Agents) > 0 {
 		b.WriteString(styleHeader.Render("Agents") + "\n")

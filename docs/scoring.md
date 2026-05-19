@@ -73,7 +73,7 @@ A tool with no findings scores 100%. Saturation is the weighted-severity value
 at which the score bottoms out at 0 (currently 3.0 — calibrate against a real
 corpus before changing).
 
-The **Risk score** shown in the scan summary is the base score of the single
+The **Readiness score** shown in the scan summary is the base score of the single
 worst finding in the entire scan. The base score shown per tool is the worst
 finding for that tool.
 
