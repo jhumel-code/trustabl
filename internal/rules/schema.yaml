@@ -249,6 +249,13 @@ rules:
 #       Fires when any of the agent's resolved ToolRefs has the given ToolKind.
 #       Only resolved (in-repo) tools are checked; External=true refs are skipped.
 #
+#   agent_grants_builtin_tool: [Bash, WebSearch, ...]
+#       Fires when the agent's tools= list contains one of the given built-in
+#       tool name strings. Unlike agent_uses_tool_kind, this matches the raw
+#       string entries (quotes stripped) — use for Claude AgentDefinition,
+#       whose tools= holds built-in tool names ("Bash", "Write") that resolve
+#       to no in-repo ToolDef.
+#
 #   agent_handoff_to_class: [Agent, SandboxAgent, ...]
 #       Fires when any of the agent's resolved HandoffRefs has the given class.
 #

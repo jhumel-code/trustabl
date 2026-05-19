@@ -72,3 +72,30 @@ func TestSelectPolicies_EmitsMETA003PerOpaqueAgent(t *testing.T) {
 		t.Errorf("expected 2 META-003 (one per opaque), got %d", meta003)
 	}
 }
+
+func TestEmitCoverageMETA_FiresWhenSDKHasNoApplicableRule(t *testing.T) {
+	// Claude SDK observed, but the registry reports no applicable category
+	// for it (e.g. only tool rules loaded and zero tools discovered).
+	inv := models.RepoInventory{SDKsDetected: []models.SDK{models.SDKClaudeAgentSDK}}
+	applicable := map[models.DetectorCategory]bool{} // nothing applied
+	findings := scanner.EmitCoverageMETA(applicable, inv)
+	if len(findings) != 1 || findings[0].RuleID != "META-004" {
+		t.Fatalf("expected one META-004, got %+v", findings)
+	}
+}
+
+func TestEmitCoverageMETA_SilentWhenCategoryApplicable(t *testing.T) {
+	inv := models.RepoInventory{SDKsDetected: []models.SDK{models.SDKClaudeAgentSDK}}
+	applicable := map[models.DetectorCategory]bool{models.CategoryClaudeSDK: true}
+	if f := scanner.EmitCoverageMETA(applicable, inv); len(f) != 0 {
+		t.Errorf("expected no META-004 when category applicable, got %+v", f)
+	}
+}
+
+func TestEmitCoverageMETA_SilentForUnmappedSDK(t *testing.T) {
+	// MCP/openshell/unknown SDKs are deliberately not covered by META-004.
+	inv := models.RepoInventory{SDKsDetected: []models.SDK{models.SDKMCP, models.SDK("langgraph")}}
+	if f := scanner.EmitCoverageMETA(map[models.DetectorCategory]bool{}, inv); len(f) != 0 {
+		t.Errorf("expected no META-004 for unmapped SDKs, got %+v", f)
+	}
+}

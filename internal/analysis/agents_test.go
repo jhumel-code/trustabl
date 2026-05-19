@@ -75,6 +75,49 @@ agent = AgentDefinition(name="claude")
 	}
 }
 
+func TestDiscoverAgents_NameFromDictKey(t *testing.T) {
+	src := `
+from claude_agent_sdk import AgentDefinition
+agents = {
+    "researcher": AgentDefinition(description="d", tools=["WebSearch"], model="haiku"),
+    "data-analyst": AgentDefinition(description="d", tools=["Bash"], model="haiku"),
+}
+`
+	pf := parsePyFile(t, "main.py", src)
+	got := analysis.DiscoverAgents([]analysis.ParsedFile{pf})
+	if len(got) != 2 {
+		t.Fatalf("expected 2 agents, got %d: %+v", len(got), got)
+	}
+	names := map[string]bool{got[0].Name: true, got[1].Name: true}
+	if !names["researcher"] || !names["data-analyst"] {
+		t.Errorf("expected names researcher + data-analyst, got %q and %q", got[0].Name, got[1].Name)
+	}
+}
+
+func TestDiscoverAgents_NameFromAssignment(t *testing.T) {
+	src := `
+from claude_agent_sdk import AgentDefinition
+researcher = AgentDefinition(description="d", tools=["WebSearch"])
+`
+	pf := parsePyFile(t, "main.py", src)
+	got := analysis.DiscoverAgents([]analysis.ParsedFile{pf})
+	if len(got) != 1 || got[0].Name != "researcher" {
+		t.Fatalf("expected name 'researcher', got %+v", got)
+	}
+}
+
+func TestDiscoverAgents_NameKwargWinsOverDictKey(t *testing.T) {
+	src := `
+from agents import Agent
+mapping = {"key_name": Agent(name="kwarg_name")}
+`
+	pf := parsePyFile(t, "main.py", src)
+	got := analysis.DiscoverAgents([]analysis.ParsedFile{pf})
+	if len(got) != 1 || got[0].Name != "kwarg_name" {
+		t.Fatalf("expected name= kwarg to win, got %+v", got)
+	}
+}
+
 func TestDiscoverAgents_SkipsUnrelatedCalls(t *testing.T) {
 	src := `
 def foo():

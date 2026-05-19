@@ -96,3 +96,41 @@ func SelectAndEmitMETA(profile models.RepoProfile, inv models.RepoInventory) []m
 
 	return out
 }
+
+// sdkToCategory maps an observed agent SDK to the detector category that
+// audits it. Only SDKs that ship a policy pack with a "false clean bill"
+// risk are listed; openshell is always-on and MCP has no agent surface.
+var sdkToCategory = map[models.SDK]models.DetectorCategory{
+	models.SDKClaudeAgentSDK: models.CategoryClaudeSDK,
+	models.SDKOpenAIAgents:   models.CategoryOpenAISDK,
+}
+
+// EmitCoverageMETA emits META-004 when an audited SDK was observed in code
+// but not a single one of its loaded rules was even applicable to anything
+// discovered — i.e. trustabl could not actually audit it, yet the absence of
+// findings would otherwise read as a clean bill of health. `applicable` is
+// the set of categories that had at least one detector Apply to at least one
+// entity (Registry.ApplicableCategories).
+func EmitCoverageMETA(applicable map[models.DetectorCategory]bool, inv models.RepoInventory) []models.Finding {
+	var out []models.Finding
+	for _, sdk := range inv.SDKsDetected {
+		cat, known := sdkToCategory[sdk]
+		if !known || applicable[cat] {
+			continue
+		}
+		out = append(out, models.Finding{
+			RuleID:   "META-004",
+			Severity: models.SeverityInfo,
+			Title:    "SDK detected but no rule was applicable",
+			Explanation: fmt.Sprintf(
+				"trustabl detected the %q SDK in code and loaded its policy pack, but "+
+					"none of that pack's rules were applicable to any discovered tool or "+
+					"agent. The absence of findings does NOT mean this code is clean — it "+
+					"means trustabl could not audit it (often because tools are declared in "+
+					"a shape discovery does not yet extract).", sdk),
+			SuggestedFix: "Treat this scan as uncovered for this SDK, not as a pass. File an issue with the agent/tool shape so discovery can be extended.",
+			Confidence:   1.0,
+		})
+	}
+	return out
+}

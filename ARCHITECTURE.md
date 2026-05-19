@@ -256,6 +256,7 @@ Shipped rules (one row per YAML rule entry):
 | CSDK-005 | tool | claude_sdk | medium   | `claude_sdk/error_handling.yaml`         | Raises with no try/except wrapping                                  |
 | CSDK-006 | tool | claude_sdk | medium   | `claude_sdk/idempotency.yaml`            | Mutating verb in name + no idempotency-key param                    |
 | CSDK-007 | tool | claude_sdk | low      | `claude_sdk/tool_definition.yaml`        | Ambiguous name (`process`, `handle`, `run`, …)                      |
+| CSDK-101 | agent | claude_sdk | high    | `claude_sdk/agent_safety.yaml`           | Claude `AgentDefinition` subagent granted the built-in `Bash` tool  |
 | OSH-001 | tool  | openshell  | critical | `openshell/shell.yaml`                   | `subprocess(..., shell=True)`                                       |
 | OSH-002 | tool  | openshell  | high     | `openshell/shell.yaml`                   | Shell call without `ALLOWED_COMMANDS` allowlist                     |
 | OSH-003 | tool  | openshell  | high     | `openshell/filesystem.yaml`              | `open(..., "w")` / `shutil.move`/`rmtree` etc.                      |
@@ -480,7 +481,8 @@ internal/
 │       │   ├── network.yaml           CSDK-003
 │       │   ├── path_safety.yaml       CSDK-004
 │       │   ├── error_handling.yaml    CSDK-005
-│       │   └── idempotency.yaml       CSDK-006
+│       │   ├── idempotency.yaml       CSDK-006
+│       │   └── agent_safety.yaml      CSDK-101 (agent scope)
 │       ├── openai_sdk/
 │       │   ├── tool_definition.yaml   OAI-001, OAI-002
 │       │   ├── decorator_config.yaml  OAI-003, OAI-004
@@ -577,6 +579,11 @@ scanner.
 | META-001 | An SDK is observed in code (`SDKsDetected`) but trustabl has no policy pack for it | info | Honest "unaudited SDK" signal — silence on an unknown SDK is wrong |
 | META-002 | An SDK appears in declared deps (`SDKDeps`) but no code use was observed | info | Dep declared but not used — surfaces drift between manifests and code |
 | META-003 | An `AgentDef` has `Opaque=true` (`Agent(**config)` or `tools=non-literal`) | info | Agent analysis is partial; tool-graph predicates on this agent are unreliable |
+| META-004 | An audited SDK (Claude/OpenAI) was observed but **no loaded rule was applicable** to any discovered tool/agent | info | Distinguishes "could not audit" from "audited, clean" — prevents a false clean bill when discovery extracted nothing a rule targets |
+
+META-004 is emitted by `EmitCoverageMETA` (post-policy-selection, using
+`Registry.ApplicableCategories`) — `Applies()` true means a rule was relevant,
+not that it fired, so a genuinely clean repo still suppresses META-004.
 
 META findings use `RuleID = "META-001"` etc. and `Category = ""` (no category
 filter applies to them). They are included in `ScanResult.Findings` and

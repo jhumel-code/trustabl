@@ -26,8 +26,8 @@ multi-language rule sets when those parsers ship. See
 (`@tool`, `@claude_tool`, `claude_agent_sdk`), OpenAI Agents SDK
 (`@function_tool`), and MCP server registrations (`@server.tool`,
 `@mcp.tool`, `.register_tool`). Shipped detection rules live in
-`internal/rules/policies/claude_sdk/` (CSDK-001–007), `openai_sdk/`
-(OAI-001–201), and `openshell/` (OSH-001–005); each pack's `explanation`
+`internal/rules/policies/claude_sdk/` (CSDK-001–007 tool, CSDK-101 agent),
+`openai_sdk/` (OAI-001–201), and `openshell/` (OSH-001–005); each pack's `explanation`
 and `fix` text is scoped to the SDK it targets. Each SDK's agents are
 discovered separately (`kind: openai_agent` vs `claude_agent_definition`)
 and checked only against the rules for that SDK — no cross-SDK casting.
@@ -152,6 +152,12 @@ required unless the rule needs a new predicate primitive (see
 | CSDK-005 | Tool raises raw exceptions (no error contract)     | medium   |
 | CSDK-006 | Tool with side-effects has no idempotency hint     | medium   |
 | CSDK-007 | Ambiguous tool name (`process`, `handle`, ...)     | low      |
+
+**Claude Agent SDK (agent scope)**
+
+| Rule     | Title                                                  | Severity |
+| -------- | ------------------------------------------------------ | -------- |
+| CSDK-101 | `AgentDefinition` subagent granted the built-in `Bash` tool | high |
 
 **OpenAI Agents SDK (tool scope)**
 

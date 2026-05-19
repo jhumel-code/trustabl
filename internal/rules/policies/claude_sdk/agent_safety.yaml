@@ -1,0 +1,39 @@
+policy:
+  id: claude_sdk_agent_safety
+  name: Claude Agent SDK subagent wiring safety
+  category: claude_sdk
+  description: >
+    Agent-scoped rules for the Claude Agent SDK. These fire per
+    AgentDefinition(...) declaration and inspect the built-in tools the
+    subagent is granted. AgentDefinition has no guardrail mechanism of its
+    own, so the tools it is handed are the whole of its privilege surface.
+
+rules:
+  - id: CSDK-101
+    title: Claude subagent is granted the Bash tool
+    scope: agent
+    severity: high
+    confidence: 0.8
+    language: python
+    applies_to:
+      - claude_agent_definition
+    match:
+      agent_grants_builtin_tool:
+        - Bash
+    explanation: >
+      This AgentDefinition grants the built-in Bash tool, giving the
+      subagent arbitrary shell-command execution. Subagents are dispatched
+      autonomously by a lead agent in response to model-generated task
+      descriptions, so a prompt-injected or mis-scoped task can reach the
+      shell with no human in the loop. This is acute when the surrounding
+      ClaudeAgentOptions sets permission_mode="bypassPermissions", which
+      removes the SDK's interactive approval gate entirely.
+    fix: >
+      Remove "Bash" from this subagent's tools list unless shell execution
+      is essential to its job. If it is essential, gate it with a
+      PreToolUse hook that allowlists the specific commands the subagent
+      may run, and do not pair it with permission_mode="bypassPermissions"
+      at the ClaudeAgentOptions level.
+    fix_hints:
+      hook: pretooluse_validate
+      guard: command_allowlist

@@ -497,6 +497,33 @@ var policyAgentRuleCases = []policyAgentCase{
 		},
 		models.RepoInventory{},
 		false},
+
+	// ─── CSDK-101 Claude subagent granted Bash ────────────────────────────────
+	{"CSDK-101 fires when AgentDefinition grants Bash", "CSDK-101",
+		models.AgentDef{
+			SDK:   models.SDKClaudeAgentSDK,
+			Class: "AgentDefinition",
+			Name:  "data-analyst",
+			ToolRefs: []models.ToolRef{
+				{Name: `"Glob"`, External: true},
+				{Name: `"Bash"`, External: true},
+				{Name: `"Write"`, External: true},
+			},
+		},
+		models.RepoInventory{},
+		true},
+	{"CSDK-101 silent when no Bash in tools", "CSDK-101",
+		models.AgentDef{
+			SDK:   models.SDKClaudeAgentSDK,
+			Class: "AgentDefinition",
+			Name:  "researcher",
+			ToolRefs: []models.ToolRef{
+				{Name: `"WebSearch"`, External: true},
+				{Name: `"Write"`, External: true},
+			},
+		},
+		models.RepoInventory{},
+		false},
 }
 
 func TestPolicyAgentRules(t *testing.T) {

@@ -540,6 +540,23 @@ func PredAgentUsesToolKind(kinds []string, a models.AgentDef, inv models.RepoInv
 	return false
 }
 
+// PredAgentGrantsBuiltinTool fires when the agent's tools= list contains a
+// built-in tool name (a string literal like "Bash"), as opposed to a
+// reference to a discovered ToolDef. Used for Claude AgentDefinition, whose
+// tools= holds built-in tool name strings that resolve to no ToolDef and so
+// are invisible to agent_uses_tool_kind.
+func PredAgentGrantsBuiltinTool(names []string, a models.AgentDef) bool {
+	for _, ref := range a.ToolRefs {
+		got := strings.Trim(ref.Name, `"'`)
+		for _, want := range names {
+			if got == want {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func PredAgentHandoffToClass(classes []string, a models.AgentDef) bool {
 	for _, ref := range a.HandoffRefs {
 		if ref.Resolved == nil {
@@ -610,5 +627,3 @@ func PredRepoComponentPresent(kinds []string, p models.RepoProfile) bool {
 func PredRepoUsesDefaultTracing(want bool, inv models.RepoInventory) bool {
 	return inv.UsesDefaultTracing == want
 }
-
-

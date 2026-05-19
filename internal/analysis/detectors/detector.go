@@ -92,6 +92,38 @@ func (r *Registry) Run(profile models.RepoProfile, inv models.RepoInventory, par
 	return out
 }
 
+// ApplicableCategories returns the set of detector categories that had at
+// least one detector whose Applies() returned true for at least one entity.
+// This is "could a rule even run here", distinct from "did a rule fire" — a
+// clean repo still has applicable categories; a repo whose SDK was detected
+// but yielded no analyzable tools/agents does not. Used to emit the
+// coverage-gap META finding.
+func (r *Registry) ApplicableCategories(profile models.RepoProfile, inv models.RepoInventory) map[models.DetectorCategory]bool {
+	out := make(map[models.DetectorCategory]bool)
+	for _, d := range r.tool {
+		for _, t := range inv.Tools {
+			if d.Applies(t) {
+				out[d.Category()] = true
+				break
+			}
+		}
+	}
+	for _, d := range r.agent {
+		for _, a := range inv.Agents {
+			if d.Applies(a) {
+				out[d.Category()] = true
+				break
+			}
+		}
+	}
+	for _, d := range r.repo {
+		if d.Applies(profile, inv) {
+			out[d.Category()] = true
+		}
+	}
+	return out
+}
+
 // Subset returns a new registry containing only detectors in the given categories.
 func (r *Registry) Subset(cats ...models.DetectorCategory) *Registry {
 	cset := make(map[models.DetectorCategory]bool, len(cats))

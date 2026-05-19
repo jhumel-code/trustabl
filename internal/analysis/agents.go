@@ -174,6 +174,23 @@ func discoverAgentsInFile(pf ParsedFile) []models.AgentDef {
 			kwargs.Children["name"].Value.Kind == models.ExprLiteralString {
 			a.Name = strings.Trim(kwargs.Children["name"].Value.Text, `"'`)
 		}
+		// Claude's AgentDefinition has no name= kwarg — the agent is named by
+		// its enclosing dict key (agents={"researcher": AgentDefinition(...)})
+		// or by the assignment target (researcher = AgentDefinition(...)).
+		if a.Name == "" {
+			if p := n.Parent(); p != nil {
+				switch p.Type() {
+				case "pair":
+					if k := p.ChildByFieldName("key"); k != nil && k.Type() == "string" {
+						a.Name = strings.Trim(astutil.NodeText(k, pf.Source), `"'`)
+					}
+				case "assignment":
+					if l := p.ChildByFieldName("left"); l != nil && l.Type() == "identifier" {
+						a.Name = astutil.NodeText(l, pf.Source)
+					}
+				}
+			}
+		}
 		out = append(out, a)
 		return true
 	})

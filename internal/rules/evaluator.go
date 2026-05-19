@@ -51,6 +51,9 @@ func (e MatchExpr) EvaluateAgent(a models.AgentDef, inv models.RepoInventory) bo
 	if len(e.AgentUsesToolKind) > 0 && !PredAgentUsesToolKind(e.AgentUsesToolKind, a, inv) {
 		return false
 	}
+	if len(e.AgentGrantsBuiltinTool) > 0 && !PredAgentGrantsBuiltinTool(e.AgentGrantsBuiltinTool, a) {
+		return false
+	}
 	if len(e.AgentHandoffToClass) > 0 && !PredAgentHandoffToClass(e.AgentHandoffToClass, a) {
 		return false
 	}
