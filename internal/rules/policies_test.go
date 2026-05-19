@@ -394,6 +394,23 @@ def summarize_document(x: str) -> dict:
     return {}
 `, nil, false},
 
+	// ─── GADK-008 BashTool metacharacter blocking ─────────────────────────────
+	{"GADK-008 fires on BashTool with no config", "GADK-008", models.KindGoogleADKTool, `
+def BashTool():
+    """Execute shell commands."""
+    pass
+`, nil, true},
+	{"GADK-008 fires on BashTool with block_shell_metacharacters=False", "GADK-008", models.KindGoogleADKTool, `
+def BashTool():
+    """Execute shell commands."""
+    pass
+`, map[string]string{"block_shell_metacharacters": "False"}, true},
+	{"GADK-008 silent on BashTool with block_shell_metacharacters=True", "GADK-008", models.KindGoogleADKTool, `
+def BashTool():
+    """Execute shell commands."""
+    pass
+`, map[string]string{"block_shell_metacharacters": "True"}, false},
+
 	// ─── OAIS-001 missing docstring ──────────────────────────────────────────
 	{"OAIS-001 fires on missing docstring", "OAIS-001", models.KindOpenAITool, `
 def fetch_data(x: str) -> dict:

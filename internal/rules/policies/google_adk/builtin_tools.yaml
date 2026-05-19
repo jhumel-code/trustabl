@@ -1,0 +1,42 @@
+policy:
+  id: google_adk_builtin_tools
+  name: Google ADK built-in tool safety
+  category: google_adk
+  description: >
+    Rules that flag unsafe configurations on Google ADK built-in tool
+    classes (BashTool, etc.). These are detected by constructor call rather
+    than decorator, and their safety kwargs must be set explicitly — the
+    defaults are permissive.
+
+rules:
+  - id: GADK-008
+    title: BashTool missing shell metacharacter blocking
+    scope: tool
+    severity: high
+    confidence: 0.9
+    language: python
+    applies_to:
+      - google_adk_tool
+    match:
+      all:
+        - name_in:
+            - BashTool
+        - not:
+            tool_decorator_kwarg_value:
+              kwarg: block_shell_metacharacters
+              value: "True"
+    explanation: >
+      BashTool executes shell commands on behalf of the model. Without
+      block_shell_metacharacters=True, model-supplied input can contain
+      shell metacharacters (;, |, &&, $(...), backticks) that rewrite the
+      intended command into an arbitrary shell injection. This parameter was
+      added in google-adk v1.34 and defaults to False — omitting it leaves
+      the shell fully injectable.
+    fix: >
+      Pass block_shell_metacharacters=True to the BashTool constructor.
+      If the tool legitimately needs metacharacters for a specific use case,
+      document the threat model and pair it with an OpenShell command
+      allowlist policy at the sandbox layer.
+    fix_type: config
+    fix_hints:
+      policy_emit: command_allowlist

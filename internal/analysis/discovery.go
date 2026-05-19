@@ -104,6 +104,90 @@ func toolsInFile(pf ParsedFile) []models.ToolDef {
 		out = append(out, buildTool(fn, pf, models.KindShellInvocation))
 	}
 
+	// Pass 3: Google ADK built-in tool constructors (BashTool, etc.).
+	// These are instantiated directly rather than via decorator, so Pass 1
+	// misses them. We detect them by import origin and constructor call.
+	out = append(out, adkBuiltinsInFile(pf)...)
+
+	return out
+}
+
+// adkBuiltinNames is the set of Google ADK built-in class names detected by
+// constructor call. Import must originate from a google.adk* module.
+var adkBuiltinNames = map[string]bool{
+	"BashTool": true,
+}
+
+// adkBuiltinsInFile finds Google ADK built-in tool constructor calls (e.g.
+// BashTool(...)) that are imported from google.adk* and returns a ToolDef for
+// each, with constructor kwargs captured in Config.
+func adkBuiltinsInFile(pf ParsedFile) []models.ToolDef {
+	// Step 1: collect names imported from google.adk* that match our set.
+	imported := make(map[string]bool) // local name → true
+	astutil.Walk(pf.Tree.RootNode(), func(n *sitter.Node) bool {
+		if n.Type() != "import_from_statement" {
+			return true
+		}
+		mod := astutil.NodeText(n.ChildByFieldName("module_name"), pf.Source)
+		if !strings.HasPrefix(mod, "google.adk") {
+			return true
+		}
+		for i := 0; i < int(n.ChildCount()); i++ {
+			child := n.Child(i)
+			switch child.Type() {
+			case "dotted_name":
+				name := astutil.NodeText(child, pf.Source)
+				if adkBuiltinNames[name] {
+					imported[name] = true
+				}
+			case "aliased_import":
+				orig := astutil.NodeText(child.ChildByFieldName("name"), pf.Source)
+				alias := astutil.NodeText(child.ChildByFieldName("alias"), pf.Source)
+				if adkBuiltinNames[orig] {
+					imported[alias] = true
+				}
+			}
+		}
+		return true
+	})
+	if len(imported) == 0 {
+		return nil
+	}
+
+	// Step 2: find constructor calls and extract kwargs into Config.
+	var out []models.ToolDef
+	astutil.Walk(pf.Tree.RootNode(), func(n *sitter.Node) bool {
+		if n.Type() != "call" {
+			return true
+		}
+		funcNode := n.ChildByFieldName("function")
+		if funcNode == nil {
+			return true
+		}
+		name := astutil.NodeText(funcNode, pf.Source)
+		if !imported[name] {
+			return true
+		}
+		kwargs, _ := extractCallKwargs(n, pf.Source)
+		config := map[string]string{}
+		if kwargs != nil {
+			for k, v := range kwargs.Children {
+				if v != nil && v.Value != nil {
+					config[k] = v.Value.Text
+				}
+			}
+		}
+		out = append(out, models.ToolDef{
+			Name:     name,
+			Kind:     models.KindGoogleADKTool,
+			Language: models.LanguagePython,
+			FilePath: pf.RelPath,
+			Line:     int(n.StartPoint().Row) + 1,
+			Config:   config,
+			Facts:    map[string]string{},
+		})
+		return true
+	})
 	return out
 }
 
