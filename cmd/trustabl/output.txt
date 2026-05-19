@@ -1,7 +1,7 @@
 Scan summary
   Repo:           C:\Users\Joana\Desktop\sairen-files\github\openai-agents-python
-  Tools found:    237
-  Findings:       429
+  Tools found:    210
+  Findings:       407
   Overall score:    0%
   Risk score:     66.5/100
 
@@ -125,8 +125,6 @@ Per-tool readiness
   triage_tool                       86%  28.0/100  (2 findings)
   visible_lookup_account            86%  28.0/100  (2 findings)
   timeout_tool                      87%  24.0/100  (2 findings)
-  allow_output_guardrail            90%  14.3/100  (2 findings)
-  test_guardrail                    90%  14.3/100  (2 findings)
   billing_status_checker            91%  28.0/100  (1 findings)
   calculate_sum                     91%  28.0/100  (1 findings)
   fetch_random_image                91%  28.0/100  (1 findings)
@@ -154,41 +152,20 @@ Per-tool readiness
   test_tool                         91%  28.0/100  (1 findings)
   boom                              92%  24.0/100  (1 findings)
   add                               95%  14.3/100  (1 findings)
-  allow_guardrail                   95%  14.3/100  (1 findings)
-  allow_input                       95%  14.3/100  (1 findings)
-  allow_output                      95%  14.3/100  (1 findings)
   apply_lifecycle_patch             95%  14.3/100  (1 findings)
   assert_manifest_materialized_tool  95%  14.3/100  (1 findings)
   assert_restored_lifecycle_state_tool  95%  14.3/100  (1 findings)
   assert_workspace_escape_blocked_tool  95%  14.3/100  (1 findings)
-  check_for_password                95%  14.3/100  (1 findings)
-  check_for_ssn                     95%  14.3/100  (1 findings)
-  decorated_input_guardrail         95%  14.3/100  (1 findings)
-  decorated_named_input_guardrail   95%  14.3/100  (1 findings)
-  decorated_named_output_guardrail  95%  14.3/100  (1 findings)
-  decorated_output_guardrail        95%  14.3/100  (1 findings)
   echo                              95%  14.3/100  (1 findings)
-  externally_released_tripwire_guardrail  95%  14.3/100  (1 findings)
   extract_lifecycle_archive         95%  14.3/100  (1 findings)
-  long_sleeping_guardrail           95%  14.3/100  (1 findings)
-  mixed_guardrail                   95%  14.3/100  (1 findings)
-  raise_exception_guardrail         95%  14.3/100  (1 findings)
-  record_guardrail                  95%  14.3/100  (1 findings)
-  reject_content_guardrail          95%  14.3/100  (1 findings)
-  sleeping_tripwire_guardrail       95%  14.3/100  (1 findings)
   start_lifecycle_pty               95%  14.3/100  (1 findings)
-  test_guard                        95%  14.3/100  (1 findings)
-  tripwire_guardrail                95%  14.3/100  (1 findings)
   will_fail_on_bad_json             95%  14.3/100  (1 findings)
   will_not_fail_on_bad_json         95%  14.3/100  (1 findings)
   will_not_fail_on_bad_json_async   95%  14.3/100  (1 findings)
-  block_sensitive_output           100%  0.0/100  (0 findings)
   get_policy_reference             100%  0.0/100  (0 findings)
-  reject_args_guardrail            100%  0.0/100  (0 findings)
-  reject_phone_numbers             100%  0.0/100  (0 findings)
-  reject_sensitive_words           100%  0.0/100  (0 findings)
 
-Findings
+
+Config & permission findings  (no code change required)
 
   TestAgent
     [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_approval.py:23)
@@ -240,6 +217,611 @@ Findings
         tool descriptions that bait the agent into harmful actions (tool poisoning).        
         fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
 
+
+  test
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_agent_runner.py:3259)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_tool_use_behavior.py:77)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_tracing.py:17)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_tracing.py:224)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:33)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:67)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:103)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:142)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:176)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:224)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:271)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:318)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:366)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  test_agent
+    [OAI-103] HIGH tool_choice="required" combined with reset_tool_choice=False  (tests/test_tool_choice_reset.py:207)
+        The agent forces tool use on every turn (tool_choice="required") AND does not reset     
+        the tool choice after each call (reset_tool_choice=False). This is the SDK's    
+        documented loop pattern: the model is required to call a tool, calls one, and is
+        required to call another, indefinitely.                                         
+        fix: Either drop reset_tool_choice=False (the default True breaks the loop) or change tool_choice to "auto". If forced tool use is intentional, ensure at least one of the tools terminates the agent via tool_use_behavior=StopAtTools(...).
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:399)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:447)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1370)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1435)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1535)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  Assistant
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/filesystem_example/main.py:10)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/git_example/main.py:10)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/sse_example/main.py:32)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/streamablehttp_custom_client_example/main.py:73)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/streamablehttp_example/main.py:32)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  assistant
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/memory/test_openai_responses_compaction_session.py:1069)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/memory/test_openai_responses_compaction_session.py:1101)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/memory/test_openai_responses_compaction_session.py:1143)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/memory/test_openai_responses_compaction_session.py:1186)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+
+  sandbox
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_run_state.py:462)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_run_state.py:476)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_run_state.py:528)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_run_state.py:546)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+
+  test-agent
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1241)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1275)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1303)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1329)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  
+    [OSH-004]  MED No OpenShell resource limits configured  (:0)
+        The repo declares no OpenShell policy with cpu/memory/time limits. A runaway tool call
+        (infinite loop, memory blow-up) is unbounded by default.                      
+        fix: The generated openshell/policy.yaml will include default limits — review them against your expected workloads before committing.
+
+
+  get_current_weather
+    [OSH-005] HIGH Network egress is unrestricted  (examples/mcp/streamablehttp_example/server.py:28)
+        The tool issues HTTP calls to a URL derived from inputs, with no host allowlist in the       
+        code path. OpenShell can restrict outbound DNS/connect at the sandbox layer, which is
+        strictly more reliable than enforcing it in Python.                                  
+        fix: Define an allowlist of hostnames the tool may reach. The generated OpenShell policy will gate egress to those hosts.
+
+
+  f"Scenario {step.label}
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_hitl_session_scenario.py:286)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+
+  f"{label} HITL scenario
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (examples/memory/hitl_session_scenario.py:77)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+
+  first
+    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_example_workflows.py:745)
+        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
+        agent's final response without any model post-processing. If the tool returns      
+        attacker-controlled data (web search results, untrusted file contents, MCP-provided
+        tool output), that data is rendered to the user verbatim — an exfiltration and     
+        prompt-injection vector.                                                           
+        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
+
+
+  DeepWiki Assistant
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/streamable_http_remote_example/main.py:21)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  FastAPI Agent
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/manager_example/app.py:101)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  MCP Assistant
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/tool_filter_example/main.py:42)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  MCPAgent
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/test_stream_events.py:139)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  SSE Assistant
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/sse_remote_example/main.py:71)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  ToolFetcher
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/get_all_mcp_tools_example/main.py:17)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  _container_running
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/memory/dapr_session_example.py:445)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  _ensure_container
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/memory/dapr_session_example.py:462)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  _run_python
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/tracing/test_import_side_effects.py:14)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  _start_mcp_server
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/mcp/manager_example/smoke_test.py:59)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  admin_user
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_tool_filtering.py:222)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  build_docker_environment
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/sandbox/tutorials/misc.py:135)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  clone_repo
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (src/agents/sandbox/util/github.py:13)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  git_last_commit_timestamp
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (docs/scripts/translate_docs.py:374)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  interactive_shell_path
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/run_examples.py:181)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  local_sse_server
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/mcp/sse_remote_example/main.py:31)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  mcp-agent
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/test_tool_origin.py:153)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  open_file
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/tools/image_generator.py:20)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  prompt_agent
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_prompt_server.py:176)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  readonly_viewer
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_tool_filtering.py:228)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  regular_user
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_tool_filtering.py:234)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  run_examples
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/run_examples.py:611)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  run_single
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/run_examples.py:665)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  start_temporary_redis_server
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/run_examples.py:303)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  stream-mcp-agent
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/test_tool_origin.py:182)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  streamer
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/test_agent_as_tool.py:2033)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  streaming_prompt_agent
+    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_prompt_server.py:214)
+        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
+        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
+        separate trust boundary; an attacker- controlled or compromised MCP server can craft
+        tool descriptions that bait the agent into harmful actions (tool poisoning).        
+        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
+
+
+  test_resolve_workspace_path_helper_allows_extra_root_symlink_target
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:39)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  test_resolve_workspace_path_helper_allows_nested_read_only_extra_grant_on_read
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:168)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  test_resolve_workspace_path_helper_rejects_extra_root_symlink_to_root
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:99)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  test_resolve_workspace_path_helper_rejects_extra_root_when_not_allowed
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:69)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  test_resolve_workspace_path_helper_rejects_nested_read_only_extra_grant_on_write
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:130)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  test_tracing_atexit_cleanup_timeout_preserves_process_exit_code_on_504
+    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/test_trace_processor.py:559)
+        The tool shells out but does not constrain which binaries can be invoked. Even with        
+        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
+        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+
+
+  [OSH-004]  MED No OpenShell resource limits configured  (:0)
+      The repo declares no OpenShell policy with cpu/memory/time limits. A runaway tool call
+        (infinite loop, memory blow-up) is unbounded by default.                      
+      fix: The generated openshell/policy.yaml will include default limits — review them against your expected workloads before committing.
+
+
+Code findings  (source change required)
 
   approval_tool
     [OAI-004]  MED Tool has no failure_error_function  (tests/sandbox/integration_tests/test_runner_pause_resume.py:75)
@@ -684,280 +1266,6 @@ Findings
         fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
 
 
-  test
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_agent_runner.py:3259)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_tool_use_behavior.py:77)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_tracing.py:17)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_tracing.py:224)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:33)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:67)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:103)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:142)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:176)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:224)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:271)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:318)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_runner_calls_mcp.py:366)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  test_agent
-    [OAI-103] HIGH tool_choice="required" combined with reset_tool_choice=False  (tests/test_tool_choice_reset.py:207)
-        The agent forces tool use on every turn (tool_choice="required") AND does not reset     
-        the tool choice after each call (reset_tool_choice=False). This is the SDK's    
-        documented loop pattern: the model is required to call a tool, calls one, and is
-        required to call another, indefinitely.                                         
-        fix: Either drop reset_tool_choice=False (the default True breaks the loop) or change tool_choice to "auto". If forced tool use is intentional, ensure at least one of the tools terminates the agent via tool_use_behavior=StopAtTools(...).
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:399)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:447)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1370)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1435)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1535)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  Assistant
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/filesystem_example/main.py:10)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/git_example/main.py:10)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/sse_example/main.py:32)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/streamablehttp_custom_client_example/main.py:73)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/streamablehttp_example/main.py:32)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  assistant
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/memory/test_openai_responses_compaction_session.py:1069)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/memory/test_openai_responses_compaction_session.py:1101)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/memory/test_openai_responses_compaction_session.py:1143)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/memory/test_openai_responses_compaction_session.py:1186)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-
-  sandbox
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_run_state.py:462)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_run_state.py:476)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_run_state.py:528)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_run_state.py:546)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-
-  test-agent
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1241)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1275)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1303)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_mcp_util.py:1329)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
   dangerous_tool
     [OAI-004]  MED Tool has no failure_error_function  (tests/test_guardrails.py:672)
         When a tool raises an exception, the OpenAI Agents SDK surfaces the exception's string     
@@ -1314,93 +1622,6 @@ Findings
         shown to the model. With no description the model must guess from the function name
         when to call this tool — which causes mis-selection under ambiguous prompts.       
         fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  
-    [META-003] INFO Agent configuration is opaque  (examples/mcp/get_all_mcp_tools_example/main.py:86)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (examples/mcp/get_all_mcp_tools_example/main.py:114)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (examples/sandbox/extensions/runloop/capabilities.py:543)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_agent_config.py:212)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:448)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:565)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:631)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:649)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:668)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:701)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:732)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:762)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:793)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:822)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/test_process_model_response.py:851)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [META-003] INFO Agent configuration is opaque  (tests/utils/hitl.py:450)
-        Agent configuration is opaque (kwargs come from a variable via **unpack, or tools= is     
-        a non-literal expression like a function call); rules cannot evaluate against this
-        agent.                                                                            
-        fix: Inline the agent's kwargs at the constructor call site, or move the dynamic configuration into explicit code that trustabl can analyze.
-    [OSH-004]  MED No OpenShell resource limits configured  (:0)
-        The repo declares no OpenShell policy with cpu/memory/time limits. A runaway tool call
-        (infinite loop, memory blow-up) is unbounded by default.                      
-        fix: The generated openshell/policy.yaml will include default limits — review them against your expected workloads before committing.
 
 
   faq_lookup_tool
@@ -1848,23 +2069,19 @@ Findings
 
 
   get_current_weather
-    [CSDK-001]  LOW Tool has no description  (examples/mcp/sse_example/server.py:27)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
+    [MCP-004]  LOW MCP tool has no description  (examples/mcp/sse_example/server.py:27)
+        MCP tools expose a description field to the orchestrating model so it knows when to        
+        call the tool. Without a docstring, the server omits the description, and the model
+        must guess from the function name alone — which causes mis-selection or skipped    
+        calls under ambiguous prompts.                                                     
+        fix: Add a one-paragraph docstring describing what the tool does, its inputs, and its outputs. The MCP framework surfaces this as the tool description to any connected client.
 
-    [CSDK-001]  LOW Tool has no description  (examples/mcp/streamablehttp_example/server.py:28)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-    [OSH-005] HIGH Network egress is unrestricted  (examples/mcp/streamablehttp_example/server.py:28)
-        The tool issues HTTP calls to a URL derived from inputs, with no host allowlist in the       
-        code path. OpenShell can restrict outbound DNS/connect at the sandbox layer, which is
-        strictly more reliable than enforcing it in Python.                                  
-        fix: Define an allowlist of hostnames the tool may reach. The generated OpenShell policy will gate egress to those hosts.
+    [MCP-004]  LOW MCP tool has no description  (examples/mcp/streamablehttp_example/server.py:28)
+        MCP tools expose a description field to the orchestrating model so it knows when to        
+        call the tool. Without a docstring, the server omits the description, and the model
+        must guess from the function name alone — which causes mis-selection or skipped    
+        calls under ambiguous prompts.                                                     
+        fix: Add a one-paragraph docstring describing what the tool does, its inputs, and its outputs. The MCP framework surfaces this as the tool description to any connected client.
 
 
   approval_echo
@@ -1937,314 +2154,6 @@ Findings
         shown to the model. With no description the model must guess from the function name
         when to call this tool — which causes mis-selection under ambiguous prompts.       
         fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  f"Scenario {step.label}
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_hitl_session_scenario.py:286)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-
-  f"{label} HITL scenario
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (examples/memory/hitl_session_scenario.py:77)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-
-  first
-    [OAI-102] HIGH Agent uses tool_use_behavior="stop_on_first_tool"  (tests/test_example_workflows.py:745)
-        With tool_use_behavior="stop_on_first_tool", the first tool's raw output becomes the       
-        agent's final response without any model post-processing. If the tool returns      
-        attacker-controlled data (web search results, untrusted file contents, MCP-provided
-        tool output), that data is rendered to the user verbatim — an exfiltration and     
-        prompt-injection vector.                                                           
-        fix: Remove the tool_use_behavior="stop_on_first_tool" kwarg (the default "run_llm_again" is safe) or constrain it via StopAtTools(...) listing only tools whose outputs you control.
-
-
-  DeepWiki Assistant
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/streamable_http_remote_example/main.py:21)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  FastAPI Agent
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/manager_example/app.py:101)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  MCP Assistant
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/tool_filter_example/main.py:42)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  MCPAgent
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/test_stream_events.py:139)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  SSE Assistant
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/sse_remote_example/main.py:71)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  ToolFetcher
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (examples/mcp/get_all_mcp_tools_example/main.py:17)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  _container_running
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/memory/dapr_session_example.py:445)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  _ensure_container
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/memory/dapr_session_example.py:462)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  _run_python
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/tracing/test_import_side_effects.py:14)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  _start_mcp_server
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/mcp/manager_example/smoke_test.py:59)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  admin_user
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_tool_filtering.py:222)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  build_docker_environment
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/sandbox/tutorials/misc.py:135)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  clone_repo
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (src/agents/sandbox/util/github.py:13)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  git_last_commit_timestamp
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (docs/scripts/translate_docs.py:374)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  interactive_shell_path
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/run_examples.py:181)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  local_sse_server
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/mcp/sse_remote_example/main.py:31)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  mcp-agent
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/test_tool_origin.py:153)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  open_file
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/tools/image_generator.py:20)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  prompt_agent
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_prompt_server.py:176)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  readonly_viewer
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_tool_filtering.py:228)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  regular_user
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_tool_filtering.py:234)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  run_examples
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/run_examples.py:611)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  run_single
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/run_examples.py:665)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  start_temporary_redis_server
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (examples/run_examples.py:303)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  stream-mcp-agent
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/test_tool_origin.py:182)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  streamer
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/test_agent_as_tool.py:2033)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  streaming_prompt_agent
-    [OAI-105] HIGH Agent has mcp_servers configured AND no input_guardrails  (tests/mcp/test_prompt_server.py:214)
-        The agent imports tools from one or more MCP servers (mcp_servers=) but has no              
-        input_guardrails. MCP tool descriptions are advertised by the MCP server, which is a
-        separate trust boundary; an attacker- controlled or compromised MCP server can craft
-        tool descriptions that bait the agent into harmful actions (tool poisoning).        
-        fix: Add at least one @input_guardrail that inspects the user's input AND the resolved tool list before the model is invoked. Pin MCP servers to known-trusted URLs/checksums and document the trust assumption.
-
-
-  test_resolve_workspace_path_helper_allows_extra_root_symlink_target
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:39)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  test_resolve_workspace_path_helper_allows_nested_read_only_extra_grant_on_read
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:168)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  test_resolve_workspace_path_helper_rejects_extra_root_symlink_to_root
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:99)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  test_resolve_workspace_path_helper_rejects_extra_root_when_not_allowed
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:69)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  test_resolve_workspace_path_helper_rejects_nested_read_only_extra_grant_on_write
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/sandbox/test_runtime_helpers.py:130)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
-
-
-  test_tracing_atexit_cleanup_timeout_preserves_process_exit_code_on_504
-    [OSH-002] HIGH Shell invocation without an allowed-command list  (tests/test_trace_processor.py:559)
-        The tool shells out but does not constrain which binaries can be invoked. Even with        
-        `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
-        binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
 
 
   get_current_time
@@ -2389,23 +2298,26 @@ Findings
 
 
   get_secret_word
-    [CSDK-001]  LOW Tool has no description  (examples/mcp/sse_example/server.py:21)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
+    [MCP-004]  LOW MCP tool has no description  (examples/mcp/sse_example/server.py:21)
+        MCP tools expose a description field to the orchestrating model so it knows when to        
+        call the tool. Without a docstring, the server omits the description, and the model
+        must guess from the function name alone — which causes mis-selection or skipped    
+        calls under ambiguous prompts.                                                     
+        fix: Add a one-paragraph docstring describing what the tool does, its inputs, and its outputs. The MCP framework surfaces this as the tool description to any connected client.
 
-    [CSDK-001]  LOW Tool has no description  (examples/mcp/streamablehttp_custom_client_example/server.py:21)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
+    [MCP-004]  LOW MCP tool has no description  (examples/mcp/streamablehttp_custom_client_example/server.py:21)
+        MCP tools expose a description field to the orchestrating model so it knows when to        
+        call the tool. Without a docstring, the server omits the description, and the model
+        must guess from the function name alone — which causes mis-selection or skipped    
+        calls under ambiguous prompts.                                                     
+        fix: Add a one-paragraph docstring describing what the tool does, its inputs, and its outputs. The MCP framework surfaces this as the tool description to any connected client.
 
-    [CSDK-001]  LOW Tool has no description  (examples/mcp/streamablehttp_example/server.py:22)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
+    [MCP-004]  LOW MCP tool has no description  (examples/mcp/streamablehttp_example/server.py:22)
+        MCP tools expose a description field to the orchestrating model so it knows when to        
+        call the tool. Without a docstring, the server omits the description, and the model
+        must guess from the function name alone — which causes mis-selection or skipped    
+        calls under ambiguous prompts.                                                     
+        fix: Add a one-paragraph docstring describing what the tool does, its inputs, and its outputs. The MCP framework surfaces this as the tool description to any connected client.
 
 
   another_tool
@@ -2999,34 +2911,6 @@ Findings
         fix: Catch known failure modes and return a structured payload such as `{"error": "...", "retryable": False}` instead of raising.
 
 
-  allow_output_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_run_step_execution.py:1298)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-    [CSDK-001]  LOW Tool has no description  (tests/test_run_step_execution.py:1368)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  test_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:382)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:401)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
   billing_status_checker
     [OAI-004]  MED Tool has no failure_error_function  (examples/agent_patterns/agents_as_tools_streaming.py:10)
         When a tool raises an exception, the OpenAI Agents SDK surfaces the exception's string     
@@ -3287,35 +3171,12 @@ Findings
 
 
   add
-    [CSDK-001]  LOW Tool has no description  (examples/mcp/manager_example/mcp_server.py:16)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  allow_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:424)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  allow_input
-    [CSDK-001]  LOW Tool has no description  (tests/test_source_compat_constructors.py:169)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  allow_output
-    [CSDK-001]  LOW Tool has no description  (tests/test_source_compat_constructors.py:173)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
+    [MCP-004]  LOW MCP tool has no description  (examples/mcp/manager_example/mcp_server.py:16)
+        MCP tools expose a description field to the orchestrating model so it knows when to        
+        call the tool. Without a docstring, the server omits the description, and the model
+        must guess from the function name alone — which causes mis-selection or skipped    
+        calls under ambiguous prompts.                                                     
+        fix: Add a one-paragraph docstring describing what the tool does, its inputs, and its outputs. The MCP framework surfaces this as the tool description to any connected client.
 
 
   apply_lifecycle_patch
@@ -3350,68 +3211,13 @@ Findings
         fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
 
 
-  check_for_password
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:316)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  check_for_ssn
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:349)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  decorated_input_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:242)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  decorated_named_input_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:247)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  decorated_named_output_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:280)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  decorated_output_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:275)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
   echo
-    [CSDK-001]  LOW Tool has no description  (examples/mcp/manager_example/mcp_server.py:21)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  externally_released_tripwire_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_run_step_execution.py:1981)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
+    [MCP-004]  LOW MCP tool has no description  (examples/mcp/manager_example/mcp_server.py:21)
+        MCP tools expose a description field to the orchestrating model so it knows when to        
+        call the tool. Without a docstring, the server omits the description, and the model
+        must guess from the function name alone — which causes mis-selection or skipped    
+        calls under ambiguous prompts.                                                     
+        fix: Add a one-paragraph docstring describing what the tool does, its inputs, and its outputs. The MCP framework surfaces this as the tool description to any connected client.
 
 
   extract_lifecycle_archive
@@ -3422,75 +3228,11 @@ Findings
         fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
 
 
-  long_sleeping_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_run_step_execution.py:2104)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  mixed_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:478)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  raise_exception_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:461)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  record_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_run_step_execution.py:1109)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  reject_content_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:441)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  sleeping_tripwire_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_run_step_execution.py:2046)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
   start_lifecycle_pty
     [OAIS-001]  LOW OpenAI tool has no description  (tests/sandbox/integration_tests/_helpers.py:397)
         The OpenAI Agents SDK surfaces the @function_tool's docstring as the tool description      
         shown to the model. With no description the model must guess from the function name
         when to call this tool — which causes mis-selection under ambiguous prompts.       
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  test_guard
-    [CSDK-001]  LOW Tool has no description  (tests/test_tool_guardrails.py:529)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
-        fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
-
-
-  tripwire_guardrail
-    [CSDK-001]  LOW Tool has no description  (tests/test_run_step_execution.py:1062)
-        The Claude Agent SDK uses the tool's docstring as the description shown to the model.     
-        With no description, the model must guess from the function name when to call this
-        tool — which causes mis-selection under ambiguous prompts.                        
         fix: Add a one-paragraph docstring describing inputs, outputs, and when to use this tool.
 
 
@@ -3520,7 +3262,7 @@ Findings
 
 Generated artifacts
   hooks/pretooluse_validate.py  (claude_sdk)
-    Generated from 429 hook-eligible findings across 6 tools. Re-runs are byte-stable.
+    Generated from 407 hook-eligible findings across 6 tools. Re-runs are byte-stable.
   hooks/posttooluse_log.py  (claude_sdk)
     Structured logging hook. Phase 2 will route these events to OTEL.
   openshell/policy.yaml  (openshell)
