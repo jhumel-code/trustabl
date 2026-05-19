@@ -134,11 +134,11 @@ func (r *Renderer) Render(result models.ScanResult) string {
 			}
 			fmt.Fprintf(&b, "\n  %s\n", styleHeader.Render(ready.ToolName))
 			for _, f := range fs {
-				fmt.Fprintf(&b, "    [%s] %s %s  (%s:%d)  [fix_type:%s]\n",
+				fmt.Fprintf(&b, "    [%s] %s %s  (%s:%d)  [fix:%s]\n",
 					f.RuleID, sevTag(f.Severity), f.Title,
 					f.FilePath, f.Line, f.FixType)
 				fmt.Fprintf(&b, "        %s\n", styleDim.Render(wrapAt(f.Explanation, 86)))
-				fmt.Fprintf(&b, "        %s %s\n", styleDim.Render("fix_type:"), f.SuggestedFix)
+				fmt.Fprintf(&b, "        %s %s\n", styleDim.Render("fix:"), f.SuggestedFix)
 			}
 		}
 		// Agent/repo-scoped findings have no ToolName.
