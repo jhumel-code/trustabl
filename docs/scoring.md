@@ -93,6 +93,7 @@ finding for that tool.
 | CSDK-005 | Tool raises exceptions without a structured error contract | Medium   | 0.60 |  24.0 |
 | CSDK-006 | Mutating tool has no idempotency key               | Medium   | 0.55 |  22.0 |
 | CSDK-007 | Ambiguous tool name                                | Low      | 0.90 |  13.5 |
+| CSDK-101 | Claude subagent is granted the Bash tool           | High     | 0.80 |  56.0 |
 
 ### OpenShell (OSH)
 
@@ -154,12 +155,13 @@ finding for that tool.
 ```
 90–100   █████████  OSH-001 (99.0), MCP-002 (90.0), MCP-003 (95.0)
 70– 89   █████████  CATL-001 (80.0), CATL-002 (80.0), CATL-006 (75.0)
-40– 69   █████████████████████████████████████████████
-           CSDK-003 (59.5), CSDK-004 (49.0), OSH-002 (59.5)
-           OSH-003 (56.0), OSH-005 (49.0), OAI-005 (59.5)
-           OAI-006 (49.0), OAI-101 (59.5), OAI-102 (66.5)
-           OAI-103 (66.5), OAI-105 (59.5), MCP-001 (52.5)
-           CATL-003 (52.5), CATL-004 (49.0), CATL-005 (49.0)
+40– 69   ████████████████████████████████████████████████
+           CSDK-003 (59.5), CSDK-004 (49.0), CSDK-101 (56.0)
+           OSH-002 (59.5), OSH-003 (56.0), OSH-005 (49.0)
+           OAI-005 (59.5), OAI-006 (49.0), OAI-101 (59.5)
+           OAI-102 (66.5), OAI-103 (66.5), OAI-105 (59.5)
+           MCP-001 (52.5), CATL-003 (52.5), CATL-004 (49.0)
+           CATL-005 (49.0)
 10– 39   ████████████████████████████████████████████████
            CSDK-001 (14.3), CSDK-002 (36.0), CSDK-005 (24.0)
            CSDK-006 (22.0), CSDK-007 (13.5), OSH-004 (38.0)

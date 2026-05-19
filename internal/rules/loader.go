@@ -62,11 +62,11 @@ func Load(fsys fs.FS) ([]PolicyFile, error) {
 		}
 		if pf.Policy.Category != "" {
 			switch pf.Policy.Category {
-			case models.CategoryClaudeSDK, models.CategoryOpenAISDK, models.CategoryOpenShell,
-				models.CategoryMCP, models.CategoryCatalog:
+			case models.CategoryClaudeSDK, models.CategoryOpenAISDK, models.CategoryGoogleADK,
+				models.CategoryOpenShell, models.CategoryMCP, models.CategoryCatalog:
 				// valid
 			default:
-				errs = append(errs, fmt.Errorf("%s: unknown category %q (allowed: claude_sdk, openai_sdk, openshell, mcp, catalog)", name, pf.Policy.Category))
+				errs = append(errs, fmt.Errorf("%s: unknown category %q (allowed: claude_sdk, openai_sdk, google_adk, openshell, mcp, catalog)", name, pf.Policy.Category))
 			}
 		}
 		if len(errs) > policyErrCount {

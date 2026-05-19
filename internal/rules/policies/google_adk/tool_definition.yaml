@@ -1,0 +1,83 @@
+policy:
+  id: google_adk_tool_definition
+  name: Google ADK tool definition hygiene
+  category: google_adk
+  description: >
+    Rules that govern how a Google Agent Development Kit tool presents itself
+    to the model via name, description, and parameter shape. Violations degrade
+    the model's ability to select the right tool for a request.
+
+rules:
+  - id: GADK-001
+    title: Tool has no description
+    scope: tool
+    severity: low
+    confidence: 0.95
+    language: python
+    applies_to:
+      - google_adk_tool
+    match:
+      has_docstring: false
+    explanation: >
+      The Google ADK uses the tool function's docstring as the description
+      surfaced to the model. With no description, the model must guess from
+      the function name alone when to call this tool, which causes
+      mis-selection under ambiguous prompts.
+    fix: >
+      Add a one-paragraph docstring describing inputs, outputs, and when to
+      use this tool.
+    fix_type: code
+    fix_hints:
+      add_docstring: true
+
+  - id: GADK-002
+    title: Tool parameters are not type-annotated
+    scope: tool
+    severity: medium
+    confidence: 0.9
+    language: python
+    applies_to:
+      - google_adk_tool
+    match:
+      all:
+        - has_params: true
+        - has_typed_params: false
+    explanation: >
+      Without parameter type annotations, the ADK cannot generate an input
+      schema to validate model output. The model can hallucinate parameter
+      shapes the tool does not accept, and the failure surfaces at runtime
+      as a TypeError instead of a clean validation error before invocation.
+    fix: >
+      Annotate every parameter with a type. Prefer pydantic models for nested
+      args.
+    fix_type: code
+    fix_hints:
+      add_input_schema: true
+
+  - id: GADK-007
+    title: Ambiguous tool name
+    scope: tool
+    severity: low
+    confidence: 0.9
+    language: python
+    applies_to:
+      - google_adk_tool
+    match:
+      name_in:
+        - process
+        - handle
+        - run
+        - do
+        - execute
+        - perform
+        - work
+        - go
+        - thing
+        - stuff
+    explanation: >
+      Tool names like `process`, `handle`, or `run` give the model no signal
+      about intent. The model will either call this tool for the wrong job or
+      refuse to call it at all.
+    fix: >
+      Rename to a verb-object form, e.g. `summarize_document`, `fetch_order`.
+    fix_type: code

@@ -1,0 +1,43 @@
+policy:
+  id: google_adk_path_safety
+  name: Google ADK filesystem path safety
+  category: google_adk
+  description: >
+    Rules that catch model-supplied filesystem paths flowing into I/O calls
+    without containment. A traversal payload like ../../etc/passwd reaches
+    real filesystem state if the tool does not resolve and gate the path.
+    The OpenShell sandbox write-prefix restriction provides a complementary
+    enforcement layer at runtime.
+
+rules:
+  - id: GADK-004
+    title: Path parameter used in I/O without validation
+    scope: tool
+    severity: high
+    confidence: 0.7
+    language: python
+    applies_to:
+      - google_adk_tool
+    match:
+      call_uses_unnormalized_path_param:
+        callees:
+          - open
+          - Path
+        callee_prefixes:
+          - shutil.
+          - os.
+    explanation: >
+      The tool accepts a path-like parameter and passes it to file or
+      directory operations without resolving or sandboxing the path. A
+      model-supplied `../../etc/passwd` is reachable. Detection is
+      heuristic — confirm the parameter is genuinely user-supplied before
+      applying the fix.
+    fix: >
+      Resolve the path with `Path(...).resolve()` and assert it sits under
+      an allowed root before opening. Pair with an OpenShell write-prefix
+      policy to enforce the boundary at the sandbox layer.
+    fix_type: code
+    fix_hints:
+      hook: pretooluse_validate
+      guard: path_under_root
+      policy_emit: fs_write_prefix

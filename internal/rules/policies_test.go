@@ -223,6 +223,15 @@ def run_report(name: str) -> str:
     return "done"
 `, nil, false},
 
+	// ─── OSH-001 google_adk_tool ────────────────────────────────────────────
+	{"OSH-001 fires on google_adk_tool shell=True", "OSH-001", models.KindGoogleADKTool, `
+import subprocess
+def run_report(name: str) -> str:
+    """Run report tool."""
+    subprocess.run(f"report-tool {name}", shell=True)
+    return "done"
+`, nil, true},
+
 	// ─── OSH-002 no allowlist ───────────────────────────────────────────────
 	{"OSH-002 fires without allowlist", "OSH-002", models.KindShellInvocation, `
 import subprocess
@@ -240,6 +249,14 @@ def run_cmd(cmd: str) -> str:
     subprocess.run([cmd])
     return "done"
 `, nil, false},
+	// ─── OSH-002 google_adk_tool ────────────────────────────────────────────
+	{"OSH-002 fires on google_adk_tool without allowlist", "OSH-002", models.KindGoogleADKTool, `
+import subprocess
+def run_cmd(cmd: str) -> str:
+    """Run a command."""
+    subprocess.run([cmd])
+    return "done"
+`, nil, true},
 
 	// ─── OSH-003 unrestricted fs write ──────────────────────────────────────
 	{"OSH-003 fires on open(..., 'w')", "OSH-003", models.KindShellInvocation, `
@@ -255,6 +272,14 @@ def read_output(name: str) -> str:
     with open(f"/tmp/{name}.txt", "r") as f:
         return f.read()
 `, nil, false},
+	// ─── OSH-003 google_adk_tool ────────────────────────────────────────────
+	{"OSH-003 fires on google_adk_tool fs write", "OSH-003", models.KindGoogleADKTool, `
+def write_output(name: str) -> str:
+    """Write output."""
+    with open(f"/tmp/{name}.txt", "w") as f:
+        f.write("data")
+    return "done"
+`, nil, true},
 
 	// ─── OSH-005 broad network egress ───────────────────────────────────────
 	{"OSH-005 fires on dynamic URL", "OSH-005", models.KindClaudeSDKTool, `
@@ -268,6 +293,105 @@ import requests
 def fetch_resource() -> dict:
     """Fetch from a known endpoint."""
     return requests.get("https://api.example.com/data").json()
+`, nil, false},
+	// ─── OSH-005 google_adk_tool ────────────────────────────────────────────
+	{"OSH-005 fires on google_adk_tool dynamic URL", "OSH-005", models.KindGoogleADKTool, `
+import requests
+def fetch_resource(url: str) -> dict:
+    """Fetch from a dynamic URL."""
+    return requests.get(url).json()
+`, nil, true},
+
+	// ─── GADK-001 missing docstring ─────────────────────────────────────────
+	{"GADK-001 fires on missing docstring", "GADK-001", models.KindGoogleADKTool, `
+def fetch_data(x: str) -> dict:
+    return {}
+`, nil, true},
+	{"GADK-001 silent with docstring", "GADK-001", models.KindGoogleADKTool, `
+def fetch_data(x: str) -> dict:
+    """Fetch some data."""
+    return {}
+`, nil, false},
+
+	// ─── GADK-002 untyped params ─────────────────────────────────────────────
+	{"GADK-002 fires on untyped params", "GADK-002", models.KindGoogleADKTool, `
+def fetch_data(x, y):
+    """Does something."""
+    return {}
+`, nil, true},
+	{"GADK-002 silent with typed params", "GADK-002", models.KindGoogleADKTool, `
+def fetch_data(x: str, y: int) -> dict:
+    """Does something."""
+    return {}
+`, nil, false},
+
+	// ─── GADK-003 network no timeout ─────────────────────────────────────────
+	{"GADK-003 fires on requests.get without timeout", "GADK-003", models.KindGoogleADKTool, `
+import requests
+def fetch_data(url: str) -> dict:
+    """Fetch data."""
+    return requests.get(url).json()
+`, nil, true},
+	{"GADK-003 silent with timeout", "GADK-003", models.KindGoogleADKTool, `
+import requests
+def fetch_data(url: str) -> dict:
+    """Fetch data."""
+    return requests.get(url, timeout=10).json()
+`, nil, false},
+
+	// ─── GADK-004 path without normalization ─────────────────────────────────
+	{"GADK-004 fires on unnormalized path in open()", "GADK-004", models.KindGoogleADKTool, `
+def read_file(file_path: str) -> str:
+    """Read a file."""
+    with open(file_path) as f:
+        return f.read()
+`, nil, true},
+	{"GADK-004 silent with .resolve()", "GADK-004", models.KindGoogleADKTool, `
+from pathlib import Path
+def read_file(file_path: str) -> str:
+    """Read a file."""
+    p = Path(file_path).resolve()
+    with open(p) as f:
+        return f.read()
+`, nil, false},
+
+	// ─── GADK-005 no error contract ──────────────────────────────────────────
+	{"GADK-005 fires on raise without try/except", "GADK-005", models.KindGoogleADKTool, `
+def fetch_data(x: str) -> dict:
+    """Fetch data."""
+    raise ValueError("bad input")
+`, nil, true},
+	{"GADK-005 silent with try/except", "GADK-005", models.KindGoogleADKTool, `
+def fetch_data(x: str) -> dict:
+    """Fetch data."""
+    try:
+        raise ValueError("bad input")
+    except ValueError as e:
+        return {"error": str(e), "retryable": False}
+`, nil, false},
+
+	// ─── GADK-006 mutating tool no idempotency key ───────────────────────────
+	{"GADK-006 fires on create_ without idempotency key", "GADK-006", models.KindGoogleADKTool, `
+def create_order(item: str, quantity: int) -> dict:
+    """Create an order."""
+    return {}
+`, nil, true},
+	{"GADK-006 silent with idempotency_key param", "GADK-006", models.KindGoogleADKTool, `
+def create_order(item: str, quantity: int, idempotency_key: str) -> dict:
+    """Create an order."""
+    return {}
+`, nil, false},
+
+	// ─── GADK-007 ambiguous tool name ────────────────────────────────────────
+	{"GADK-007 fires on ambiguous name 'process'", "GADK-007", models.KindGoogleADKTool, `
+def process(x: str) -> dict:
+    """Process something."""
+    return {}
+`, nil, true},
+	{"GADK-007 silent on specific name", "GADK-007", models.KindGoogleADKTool, `
+def summarize_document(x: str) -> dict:
+    """Summarize a document."""
+    return {}
 `, nil, false},
 
 	// ─── OAIS-001 missing docstring ──────────────────────────────────────────

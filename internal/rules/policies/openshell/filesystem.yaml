@@ -15,6 +15,7 @@ rules:
     language: python
     applies_to:
       - claude_sdk_tool
+      - google_adk_tool
       - mcp_tool
       - shell_invocation
     match:

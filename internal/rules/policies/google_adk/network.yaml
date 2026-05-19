@@ -1,0 +1,56 @@
+policy:
+  id: google_adk_network
+  name: Google ADK network call hygiene
+  category: google_adk
+  description: >
+    Rules covering outbound network calls made from inside Google ADK tools.
+    The ADK does not enforce timeouts on tool code; they must be set
+    explicitly. The OpenShell sandbox can gate egress by hostname allowlist
+    as a complementary layer when tools run inside a sandbox.
+
+rules:
+  - id: GADK-003
+    title: Network call has no timeout
+    scope: tool
+    severity: high
+    confidence: 0.85
+    language: python
+    applies_to:
+      - google_adk_tool
+    match:
+      call_without_kwarg:
+        callees:
+          - requests.get
+          - requests.post
+          - requests.put
+          - requests.delete
+          - requests.patch
+          - requests.head
+          - requests.request
+          - requests.Session.get
+          - requests.Session.post
+          - httpx.get
+          - httpx.post
+          - httpx.put
+          - httpx.delete
+          - httpx.patch
+          - httpx.head
+          - httpx.request
+          - urllib.request.urlopen
+          - aiohttp.ClientSession.get
+          - aiohttp.ClientSession.post
+        missing: timeout
+    explanation: >
+      A Google ADK tool that makes a network request without a timeout can
+      hang indefinitely, blocking the agent's event loop and exhausting
+      its wall-clock budget. The ADK does not enforce timeouts on tool code.
+    fix: >
+      Pass `timeout=` (typically 5–30s depending on the endpoint) to the
+      request call. Surface failures as a structured error the model can
+      react to. Pair with an OpenShell network egress policy to gate which
+      hosts the tool may reach at the sandbox layer.
+    fix_type: code
+    fix_hints:
+      hook: pretooluse_validate
+      guard: timeout_required
+      policy_emit: network_allowlist
