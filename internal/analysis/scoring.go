@@ -32,6 +32,14 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 	}
 	var riskScore float64
 	for _, f := range findings {
+		if bs := f.BaseScore(); bs > riskScore {
+			riskScore = bs
+		}
+		if f.ToolName == "" {
+			// Agent/repo-scoped findings have no tool attribution — count toward
+			// riskScore but do not create a blank per-tool readiness entry.
+			continue
+		}
 		r, ok := byTool[f.ToolName]
 		if !ok {
 			// Findings against tools we didn't list — shouldn't happen, but be safe.
@@ -42,9 +50,6 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 		r.WeightedSeverity += models.SeverityWeight(f.Severity) * f.Confidence
 		if bs := f.BaseScore(); bs > r.MaxBaseScore {
 			r.MaxBaseScore = bs
-		}
-		if bs := f.BaseScore(); bs > riskScore {
-			riskScore = bs
 		}
 	}
 
