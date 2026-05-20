@@ -717,6 +717,26 @@ var policyRepoRuleCases = []policyRepoCase{
 		models.RepoInventory{},
 		false},
 
+	// ─── OSH-006 no process identity (repo-scoped) ───────────────────────────
+	{"OSH-006 fires when openshell SDK detected", "OSH-006",
+		models.RepoProfile{},
+		models.RepoInventory{SDKsDetected: []models.SDK{models.SDKOpenShell}},
+		true},
+	{"OSH-006 silent when no openshell SDK", "OSH-006",
+		models.RepoProfile{},
+		models.RepoInventory{},
+		false},
+
+	// ─── OSH-007 landlock not hard_requirement (repo-scoped) ─────────────────
+	{"OSH-007 fires when openshell SDK detected", "OSH-007",
+		models.RepoProfile{},
+		models.RepoInventory{SDKsDetected: []models.SDK{models.SDKOpenShell}},
+		true},
+	{"OSH-007 silent when no openshell SDK", "OSH-007",
+		models.RepoProfile{},
+		models.RepoInventory{},
+		false},
+
 	// ─── OAI-201 default tracing (repo-scoped) ───────────────────────────────
 	{"OAI-201 fires when using default tracing", "OAI-201",
 		models.RepoProfile{},

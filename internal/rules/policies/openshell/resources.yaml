@@ -1,10 +1,11 @@
 policy:
   id: openshell_resources
-  name: Resource limits
+  name: Sandbox resource and identity hardening
   category: openshell
   description: >
     Manifest-level rules that fire once per scan. They surface gaps in the
-    repo's OpenShell policy itself, not in any specific tool.
+    repo's OpenShell sandbox configuration that are not tied to any specific
+    tool — process identity, filesystem isolation mode, and resource limits.
 
 rules:
   - id: OSH-004
@@ -17,12 +18,65 @@ rules:
       - openshell
     match: {}
     explanation: >
-      The repo declares no OpenShell policy with cpu/memory/time limits. A
+      The repo declares no OpenShell sandbox policy. CPU and memory limits are
+      passed as sandbox creation parameters (not fields in policy.yaml), but
+      without any policy file the operator has no documented baseline. A
       runaway tool call (infinite loop, memory blow-up) is unbounded by
       default.
     fix: >
-      The generated openshell/policy.yaml will include default limits —
-      review them against your expected workloads before committing.
+      The generated openshell/policy.yaml provides a safe baseline with
+      landlock, process identity, and filesystem constraints. Add cpu/memory
+      limits as --cpu and --memory flags when creating the sandbox.
     fix_type: config
     fix_hints:
-      policy_emit: default_resource_limits
+      policy_emit: sandbox_baseline
+
+  - id: OSH-006
+    title: No sandbox process identity configured
+    scope: repo
+    severity: high
+    confidence: 0.9
+    language: python
+    applies_to:
+      - openshell
+    match: {}
+    explanation: >
+      The repo has no OpenShell policy that sets process.run_as_user and
+      process.run_as_group. Without an explicit identity, the sandbox process
+      defaults to whatever user the supervisor runs as, which may be root or
+      equivalent. OpenShell rejects root explicitly, but an absent process
+      section leaves the identity implicit and unaudited.
+    fix: >
+      The generated openshell/policy.yaml includes a process section with
+      run_as_user: sandbox and run_as_group: sandbox. Replace with a
+      dedicated non-root service account if your deployment requires one.
+    fix_type: config
+    fix_hints:
+      policy_emit: process_identity
+
+  - id: OSH-007
+    title: Landlock filesystem isolation not enforced strictly
+    scope: repo
+    severity: high
+    confidence: 0.9
+    language: python
+    applies_to:
+      - openshell
+    match: {}
+    explanation: >
+      The repo has no OpenShell policy with landlock.compatibility set to
+      hard_requirement. The default best_effort mode warns when Landlock
+      cannot enforce a rule and continues with reduced protection — meaning
+      a tool with filesystem access could escape its configured prefix on
+      kernels where Landlock ABI is unavailable. For repos with tools that
+      write to or execute from the filesystem, hard_requirement is the
+      correct setting: it aborts sandbox startup instead of running with
+      weakened isolation.
+    fix: >
+      The generated openshell/policy.yaml sets landlock.compatibility to
+      hard_requirement. Verify your deployment kernel supports Landlock
+      (Linux 5.13+). If you must support older kernels, document the
+      downgrade decision explicitly.
+    fix_type: config
+    fix_hints:
+      policy_emit: landlock_hard

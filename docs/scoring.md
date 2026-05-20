@@ -104,6 +104,8 @@ finding for that tool.
 | OSH-003  | Filesystem write without sandbox restriction       | High     | 0.80 |  56.0 |
 | OSH-004  | No OpenShell resource limits configured            | Medium   | 0.95 |  38.0 |
 | OSH-005  | Network egress is unrestricted                     | High     | 0.70 |  49.0 |
+| OSH-006  | No sandbox process identity configured             | High     | 0.90 |  63.0 |
+| OSH-007  | Landlock filesystem isolation not enforced strictly | High     | 0.90 |  63.0 |
 
 ### OpenAI Agents SDK (OAIS)
 
@@ -158,10 +160,10 @@ finding for that tool.
 40– 69   ████████████████████████████████████████████████
            CSDK-003 (59.5), CSDK-004 (49.0), CSDK-101 (56.0)
            OSH-002 (59.5), OSH-003 (56.0), OSH-005 (49.0)
-           OAI-005 (59.5), OAI-006 (49.0), OAI-101 (59.5)
-           OAI-102 (66.5), OAI-103 (66.5), OAI-105 (59.5)
-           MCP-001 (52.5), CATL-003 (52.5), CATL-004 (49.0)
-           CATL-005 (49.0)
+           OSH-006 (63.0), OSH-007 (63.0), OAI-005 (59.5)
+           OAI-006 (49.0), OAI-101 (59.5), OAI-102 (66.5)
+           OAI-103 (66.5), OAI-105 (59.5), MCP-001 (52.5)
+           CATL-003 (52.5), CATL-004 (49.0), CATL-005 (49.0)
 10– 39   ████████████████████████████████████████████████
            CSDK-001 (14.3), CSDK-002 (36.0), CSDK-005 (24.0)
            CSDK-006 (22.0), CSDK-007 (13.5), OSH-004 (38.0)
