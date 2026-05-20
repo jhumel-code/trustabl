@@ -5,7 +5,7 @@ Scan summary
   Tools found:    251 (distinct, repo-wide: custom defs + built-in tools granted to agents)
   Tool defs:      182 (custom @tool functions analysed by tool-scope rules)
   Agents found:   142
-  Findings:       49
+  Findings:       51
   Overall score:   23%
   Readiness score: 99.0/100
 
@@ -470,124 +470,142 @@ Config & permission findings  (no code change required)
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dataproc_template_agent/tools/dataproc_template_tools.py:165)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-003] HIGH Filesystem write without sandbox restriction  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dataproc_template_agent/tools/dataproc_template_tools.py:165)  [fix:config]
         The tool writes to or deletes from the filesystem. Without an OpenShell write-prefix       
         restriction, a path-traversal in the input lets the agent clobber files outside its
         working directory.                                                                 
         fix: Constrain writes to a single working directory and let the generated OpenShell policy enforce the prefix at the sandbox layer.
 
+        ref: OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/ · OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-003] HIGH Filesystem write without sandbox restriction  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dataproc_template_agent/tools/dataproc_template_tools.py:165)  [fix:config]
         The tool writes to or deletes from the filesystem. Without an OpenShell write-prefix       
         restriction, a path-traversal in the input lets the agent clobber files outside its
         working directory.                                                                 
         fix: Constrain writes to a single working directory and let the generated OpenShell policy enforce the prefix at the sandbox layer.
 
+        ref: OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/ · OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   start_server
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/genmedia-for-commerce/tests/integration/test_server_e2e.py:46)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/memory-bank/tests/integration/test_server_e2e.py:46)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/multiformat-hybrid-rag/tests/integration/test_server_e2e.py:44)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   get_dataproc_normal_job_logs_with_id
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/monitoring_agent/tools/dataproc.py:220)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   run_dbt_project
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dbt_agent/tools/dbt_project_runner.py:12)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dbt_agent/tools/dbt_project_runner.py:12)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   submit_dataflow_template
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dataflow_agent/tools/dataflow_template_tools.py:174)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dataflow_agent/tools/dataflow_template_tools.py:174)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   generate_and_run_beam_pipeline
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dataflow_agent/tools/pipeline_utils.py:125)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-003] HIGH Filesystem write without sandbox restriction  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dataflow_agent/tools/pipeline_utils.py:125)  [fix:config]
         The tool writes to or deletes from the filesystem. Without an OpenShell write-prefix       
         restriction, a path-traversal in the input lets the agent clobber files outside its
         working directory.                                                                 
         fix: Constrain writes to a single working directory and let the generated OpenShell policy enforce the prefix at the sandbox layer.
 
+        ref: OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/ · OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   main
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/bidi-demo/agent_engine/deploy.py:30)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-003] HIGH Filesystem write without sandbox restriction  (python/agents/bidi-demo/agent_engine/deploy.py:30)  [fix:config]
         The tool writes to or deletes from the filesystem. Without an OpenShell write-prefix       
         restriction, a path-traversal in the input lets the agent clobber files outside its
         working directory.                                                                 
         fix: Constrain writes to a single working directory and let the generated OpenShell policy enforce the prefix at the sandbox layer.
 
+        ref: OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/ · OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   run_python_code
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/machine-learning-engineering/machine_learning_engineering/shared_libraries/code_util.py:18)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-003] HIGH Filesystem write without sandbox restriction  (python/agents/machine-learning-engineering/machine_learning_engineering/shared_libraries/code_util.py:18)  [fix:config]
         The tool writes to or deletes from the filesystem. Without an OpenShell write-prefix       
         restriction, a path-traversal in the input lets the agent clobber files outside its
         working directory.                                                                 
         fix: Constrain writes to a single working directory and let the generated OpenShell policy enforce the prefix at the sandbox layer.
 
+        ref: OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/ · OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   download_repository
     [OSH-003] HIGH Filesystem write without sandbox restriction  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/github_agent/tools/github_api.py:139)  [fix:config]
@@ -596,84 +614,95 @@ Config & permission findings  (no code change required)
         working directory.                                                                 
         fix: Constrain writes to a single working directory and let the generated OpenShell policy enforce the prefix at the sandbox layer.
 
+        ref: OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/ · OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
     [OSH-005] HIGH Network egress is unrestricted  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/github_agent/tools/github_api.py:139)  [fix:config]
         The tool issues HTTP calls to a URL derived from inputs, with no host allowlist in the       
         code path. OpenShell can restrict outbound DNS/connect at the sandbox layer, which is
         strictly more reliable than enforcing it in Python.                                  
         fix: Define an allowlist of hostnames the tool may reach. The generated OpenShell policy will gate egress to those hosts.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/ · OWASP LLM Top 10:2025 LLM10 Unbounded Consumption — https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/
 
   _get_dataplex_mcp_toolset
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/policy-as-code/policy_as_code_agent/mcp.py:32)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   _setup_container
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/swe-benchmark-agent/swe_benchmark_agent/terminalbench_environment.py:51)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   clone_terminalbench_repo
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/swe-benchmark-agent/swe_benchmark_agent/main.py:38)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   close
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/swe-benchmark-agent/swe_benchmark_agent/terminalbench_environment.py:175)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   find_files
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/dataproc_template_agent/utils.py:42)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   get_access_token
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/airflow_version_upgrade_agent/deployment/setup_vertex_ai_search.py:24)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   get_project_id
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/airflow_version_upgrade_agent/deployment/setup_vertex_ai_search.py:39)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   start_calendar_mcp_server
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/hierarchical-workflow-automation/cookie_scheduler_agent/mcp_servers/start_calendar_mcp.py:12)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   to_format
     [OSH-002] HIGH Shell invocation without an allowed-command list  (python/agents/multiformat-hybrid-rag/src/document_preprocessing/parser/convert.py:39)  [fix:config]
         The tool shells out but does not constrain which binaries can be invoked. Even with        
         `shell=False`, an unconstrained `argv[0]` lets the model invoke arbitrary installed
         binaries. OpenShell can enforce an allowlist at the sandbox layer.                 
-        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it. The generated OpenShell policy will also include a command allowlist.
+        fix: Define a constant ALLOWED_COMMANDS and assert argv[0] is in it before invoking subprocess. The generated OpenShell policy will scope network access to specific binaries via network_policies.binaries.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   render_html
     [OSH-003] HIGH Filesystem write without sandbox restriction  (python/agents/youtube-analyst/youtube_analyst/tools.py:540)  [fix:config]
@@ -682,6 +711,7 @@ Config & permission findings  (no code change required)
         working directory.                                                                 
         fix: Constrain writes to a single working directory and let the generated OpenShell policy enforce the prefix at the sandbox layer.
 
+        ref: OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/ · OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
   authenticate_github
     [OSH-005] HIGH Network egress is unrestricted  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/github_agent/tools/github_api.py:30)  [fix:config]
@@ -690,6 +720,7 @@ Config & permission findings  (no code change required)
         strictly more reliable than enforcing it in Python.                                  
         fix: Define an allowlist of hostnames the tool may reach. The generated OpenShell policy will gate egress to those hosts.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/ · OWASP LLM Top 10:2025 LLM10 Unbounded Consumption — https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/
 
   fetch_page_tool
     [OSH-005] HIGH Network egress is unrestricted  (python/agents/fomc-research/fomc_research/tools/fetch_page.py:25)  [fix:config]
@@ -698,6 +729,7 @@ Config & permission findings  (no code change required)
         strictly more reliable than enforcing it in Python.                                  
         fix: Define an allowlist of hostnames the tool may reach. The generated OpenShell policy will gate egress to those hosts.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/ · OWASP LLM Top 10:2025 LLM10 Unbounded Consumption — https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/
 
   get_exchange_rate
     [OSH-005] HIGH Network egress is unrestricted  (python/agents/currency-agent/mcp-server/server.py:15)  [fix:config]
@@ -706,6 +738,7 @@ Config & permission findings  (no code change required)
         strictly more reliable than enforcing it in Python.                                  
         fix: Define an allowlist of hostnames the tool may reach. The generated OpenShell policy will gate egress to those hosts.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/ · OWASP LLM Top 10:2025 LLM10 Unbounded Consumption — https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/
 
   list_branches
     [OSH-005] HIGH Network egress is unrestricted  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/github_agent/tools/github_api.py:97)  [fix:config]
@@ -714,6 +747,7 @@ Config & permission findings  (no code change required)
         strictly more reliable than enforcing it in Python.                                  
         fix: Define an allowlist of hostnames the tool may reach. The generated OpenShell policy will gate egress to those hosts.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/ · OWASP LLM Top 10:2025 LLM10 Unbounded Consumption — https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/
 
   search_repositories
     [OSH-005] HIGH Network egress is unrestricted  (python/agents/plumber-data-engineering-assistant/plumber_agent/sub_agents/github_agent/tools/github_api.py:67)  [fix:config]
@@ -722,12 +756,37 @@ Config & permission findings  (no code change required)
         strictly more reliable than enforcing it in Python.                                  
         fix: Define an allowlist of hostnames the tool may reach. The generated OpenShell policy will gate egress to those hosts.
 
+        ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/ · OWASP LLM Top 10:2025 LLM10 Unbounded Consumption — https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/
 
   [OSH-004]  MED No OpenShell resource limits configured  (:0)  [fix:config]
-      The repo declares no OpenShell policy with cpu/memory/time limits. A runaway tool call
-        (infinite loop, memory blow-up) is unbounded by default.                      
-      fix: The generated openshell/policy.yaml will include default limits — review them against your expected workloads before committing.
+      The repo declares no OpenShell sandbox policy. CPU and memory limits are passed as          
+        sandbox creation parameters (not fields in policy.yaml), but without any policy file
+        the operator has no documented baseline. A runaway tool call (infinite loop, memory 
+        blow-up) is unbounded by default.                                                   
+      fix: The generated openshell/policy.yaml provides a safe baseline with landlock, process identity, and filesystem constraints. Add cpu/memory limits as --cpu and --memory flags when creating the sandbox.
 
+      ref: OWASP LLM Top 10:2025 LLM10 Unbounded Consumption — https://genai.owasp.org/llmrisk/llm102025-unbounded-consumption/
+
+  [OSH-006] HIGH No sandbox process identity configured  (:0)  [fix:config]
+      The repo has no OpenShell policy that sets process.run_as_user and                         
+        process.run_as_group. Without an explicit identity, the sandbox process defaults to
+        whatever user the supervisor runs as, which may be root or equivalent. OpenShell   
+        rejects root explicitly, but an absent process section leaves the identity implicit
+        and unaudited.                                                                     
+      fix: The generated openshell/policy.yaml includes a process section with run_as_user: sandbox and run_as_group: sandbox. Replace with a dedicated non-root service account if your deployment requires one.
+
+      ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
+
+  [OSH-007] HIGH Landlock filesystem isolation not enforced strictly  (:0)  [fix:config]
+      The repo has no OpenShell policy with landlock.compatibility set to hard_requirement.         
+        The default best_effort mode warns when Landlock cannot enforce a rule and continues  
+        with reduced protection — meaning a tool with filesystem access could escape its      
+        configured prefix on kernels where Landlock ABI is unavailable. For repos with tools  
+        that write to or execute from the filesystem, hard_requirement is the correct setting:
+        it aborts sandbox startup instead of running with weakened isolation.                 
+      fix: The generated openshell/policy.yaml sets landlock.compatibility to hard_requirement. Verify your deployment kernel supports Landlock (Linux 5.13+). If you must support older kernels, document the downgrade decision explicitly.
+
+      ref: OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/
 
 Code findings  (source change required)
 
@@ -739,11 +798,12 @@ Code findings  (source change required)
         optional.                                                                         
         fix: Pass the command as a list and remove `shell=True`. Encode any user data as a positional argument, never via string interpolation.
 
+        ref: OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/
 
 Generated artifacts
   hooks/pretooluse_validate.py  (claude_sdk)
-    Generated from 49 hook-eligible findings across 0 tools. Re-runs are byte-stable.
+    Generated from 51 hook-eligible findings across 0 tools. Re-runs are byte-stable.
   hooks/posttooluse_log.py  (claude_sdk)
     Structured logging hook. Phase 2 will route these events to OTEL.
   openshell/policy.yaml  (openshell)
-    Generated from 37 OpenShell finding(s).
+    Generated from 39 OpenShell finding(s).
