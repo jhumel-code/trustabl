@@ -24,16 +24,16 @@ import (
 const saturation = 3.0
 
 // Score returns per-tool readiness, the overall readiness score, and the
-// scan-level readiness score (0–100 flat base score of the worst single finding).
+// scan-level readiness score (0–100; 100 = clean, 0 = critical finding present).
 func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolReadiness, float64, float64) {
 	byTool := map[string]*models.ToolReadiness{}
 	for _, t := range tools {
-		byTool[t.Name] = &models.ToolReadiness{ToolName: t.Name, Score: 1.0}
+		byTool[t.Name] = &models.ToolReadiness{ToolName: t.Name, Score: 1.0, MaxBaseScore: 100.0}
 	}
-	var readinessScore float64
+	readinessScore := 100.0
 	for _, f := range findings {
-		if bs := f.BaseScore(); bs > readinessScore {
-			readinessScore = bs
+		if rs := 100.0 - f.BaseScore(); rs < readinessScore {
+			readinessScore = rs
 		}
 		if f.ToolName == "" {
 			// Agent/repo-scoped findings have no tool attribution — count toward
@@ -43,13 +43,13 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 		r, ok := byTool[f.ToolName]
 		if !ok {
 			// Findings against tools we didn't list — shouldn't happen, but be safe.
-			r = &models.ToolReadiness{ToolName: f.ToolName, Score: 1.0}
+			r = &models.ToolReadiness{ToolName: f.ToolName, Score: 1.0, MaxBaseScore: 100.0}
 			byTool[f.ToolName] = r
 		}
 		r.FindingCount++
 		r.WeightedSeverity += models.SeverityWeight(f.Severity) * f.Confidence
-		if bs := f.BaseScore(); bs > r.MaxBaseScore {
-			r.MaxBaseScore = bs
+		if rs := 100.0 - f.BaseScore(); rs < r.MaxBaseScore {
+			r.MaxBaseScore = rs
 		}
 	}
 
@@ -70,7 +70,7 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 	})
 
 	if len(readiness) == 0 {
-		return readiness, 1.0, 0.0
+		return readiness, 1.0, 100.0
 	}
 	min := readiness[0].Score
 	for _, r := range readiness[1:] {

@@ -78,15 +78,15 @@ func (r *Renderer) Render(result models.ScanResult) string {
 			return styleHigh.Render(pct)
 		}
 	}
-	riskCell := func(risk float64) string {
-		s := fmt.Sprintf("%.1f/100", risk)
+	riskCell := func(readiness float64) string {
+		s := fmt.Sprintf("%.1f/100", readiness)
 		switch {
-		case risk >= 70.0:
-			return styleHigh.Render(s)
-		case risk >= 40.0:
+		case readiness >= 70.0:
+			return styleOK.Render(s)
+		case readiness >= 40.0:
 			return styleMed.Render(s)
 		default:
-			return styleLow.Render(s)
+			return styleHigh.Render(s)
 		}
 	}
 

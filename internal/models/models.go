@@ -199,7 +199,7 @@ type ToolReadiness struct {
 	Score            float64 `json:"score"` // 0..1
 	FindingCount     int     `json:"finding_count"`
 	WeightedSeverity float64 `json:"weighted_severity"`
-	MaxBaseScore     float64 `json:"max_base_score"` // 0–100 flat score of worst finding
+	MaxBaseScore     float64 `json:"max_base_score"` // 0–100 readiness of worst finding (100 = clean, 0 = critical)
 }
 
 // ScanManifest is what the Normalizer produces.
@@ -275,6 +275,6 @@ type ScanResult struct {
 	Findings           []Finding           `json:"findings"`
 	Readiness          []ToolReadiness     `json:"readiness"`
 	OverallScore       float64             `json:"overall_score"`
-	ReadinessScore     float64             `json:"readiness_score"` // 0–100 flat base score of worst finding
+	ReadinessScore     float64             `json:"readiness_score"` // 0–100 readiness (100 = clean, 0 = critical finding)
 	GeneratedArtifacts []GeneratedArtifact `json:"generated_artifacts"`
 }
