@@ -56,6 +56,7 @@ type AgentDef struct {
 	Kwargs         *KwargTree      `json:"kwargs"`
 	ToolRefs       []ToolRef       `json:"tool_refs"`
 	HostedToolRefs []HostedToolRef `json:"hosted_tool_refs"`
+	MCPServerRefs  []MCPServerRef  `json:"mcp_server_refs"`
 	HandoffRefs    []AgentRef      `json:"handoff_refs"`
 	InputGuards    []GuardrailRef  `json:"input_guards"`
 	OutputGuards   []GuardrailRef  `json:"output_guards"`
@@ -98,4 +99,23 @@ type HostedToolDef struct {
 type HostedToolRef struct {
 	Class    string         `json:"class"`
 	Resolved *HostedToolDef `json:"-"`
+}
+
+// MCPServerDef is one OpenAI Agents SDK MCP server instance found in an
+// agent's mcp_servers=[...] list. Source of truth for the class set:
+// openai-agents-python/src/agents/mcp/server.py.
+type MCPServerDef struct {
+	Class     string     `json:"class"`     // "MCPServerStdio" | "MCPServerSse" | "MCPServerStreamableHttp"
+	Transport string     `json:"transport"` // "stdio" | "sse" | "streamable_http"
+	SDK       SDK        `json:"sdk"`
+	FilePath  string     `json:"file_path"`
+	Line      int        `json:"line"`
+	Kwargs    *KwargTree `json:"kwargs,omitempty"`
+}
+
+// MCPServerRef points from an AgentDef to a discovered MCPServerDef.
+type MCPServerRef struct {
+	Class    string        `json:"class"`
+	Resolved *MCPServerDef `json:"-"`
+	External bool          `json:"external"`
 }

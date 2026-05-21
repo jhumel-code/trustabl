@@ -108,11 +108,29 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 			a.Opaque = true
 		}
 
+		mcpKwarg := agentKwarg(a, "mcp_servers")
+		if mcpKwarg != nil && mcpKwarg.Value != nil && mcpKwarg.Value.Kind == models.ExprList {
+			for _, item := range mcpKwarg.Value.List {
+				if m, ok := classifyMCPServerCall(item, a.FilePath, a.Line); ok {
+					inv.MCPServers = append(inv.MCPServers, m)
+					a.MCPServerRefs = append(a.MCPServerRefs, models.MCPServerRef{Class: m.Class})
+					continue
+				}
+				// ExprNameRef (alias from `async with X as srv`) and other shapes
+				// land in task 4. For now, mark as External so we don't lose count.
+				a.MCPServerRefs = append(a.MCPServerRefs, models.MCPServerRef{
+					Class:    item.Text,
+					External: true,
+				})
+			}
+		}
+
 		resolveGuardKwarg(a, "input_guardrails", &a.InputGuards, guardsByFileSym[a.FilePath])
 		resolveGuardKwarg(a, "output_guardrails", &a.OutputGuards, guardsByFileSym[a.FilePath])
 	}
 
 	sortHostedTools(inv.HostedTools)
+	sortMCPServers(inv.MCPServers)
 
 	// Re-resolve HostedToolRef pointers after sorting. The append-and-take-address
 	// pattern in the loop above leaves stale pointers when sort moves elements;
@@ -135,6 +153,34 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 				h := &inv.HostedTools[k]
 				if h.FilePath == a.FilePath && h.Line == a.Line && h.Class == ref.Class {
 					ref.Resolved = h
+					consumed[k] = true
+					break
+				}
+			}
+		}
+	}
+
+	// Re-resolve MCPServerRef pointers after sorting (same rationale as
+	// HostedToolRef re-resolution above — append + sort can invalidate
+	// the inline pointers).
+	for i := range inv.Agents {
+		a := &inv.Agents[i]
+		if len(a.MCPServerRefs) == 0 {
+			continue
+		}
+		consumed := make(map[int]bool, len(a.MCPServerRefs))
+		for j := range a.MCPServerRefs {
+			ref := &a.MCPServerRefs[j]
+			if ref.External {
+				continue
+			}
+			for k := range inv.MCPServers {
+				if consumed[k] {
+					continue
+				}
+				m := &inv.MCPServers[k]
+				if m.FilePath == a.FilePath && m.Line == a.Line && m.Class == ref.Class {
+					ref.Resolved = m
 					consumed[k] = true
 					break
 				}

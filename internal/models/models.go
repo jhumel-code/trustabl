@@ -193,16 +193,17 @@ type RepoProfile struct {
 }
 
 // RepoInventory is the output of Phase 2a.
-// AgentDef, GuardrailDef, SessionUse, HostedToolDef are in agent.go.
+// AgentDef, GuardrailDef, SessionUse, HostedToolDef, MCPServerDef are in agent.go.
 type RepoInventory struct {
-	Tools              []ToolDef       `json:"tools"`
-	Agents             []AgentDef      `json:"agents"`
-	Guardrails         []GuardrailDef  `json:"guardrails"`
-	Sessions           []SessionUse    `json:"sessions"`
-	HostedTools        []HostedToolDef `json:"hosted_tools"`
-	SDKsDetected       []SDK           `json:"sdks_detected"`
-	Manifest           ScanManifest    `json:"manifest"` // convenience copy for repo-scope predicates
-	UsesDefaultTracing bool            `json:"uses_default_tracing"`
+	Tools              []ToolDef        `json:"tools"`
+	Agents             []AgentDef       `json:"agents"`
+	Guardrails         []GuardrailDef   `json:"guardrails"`
+	Sessions           []SessionUse     `json:"sessions"`
+	HostedTools        []HostedToolDef  `json:"hosted_tools"`
+	MCPServers         []MCPServerDef   `json:"mcp_servers"`
+	SDKsDetected       []SDK            `json:"sdks_detected"`
+	Manifest           ScanManifest     `json:"manifest"` // convenience copy for repo-scope predicates
+	UsesDefaultTracing bool             `json:"uses_default_tracing"`
 }
 
 // GeneratedArtifact is a file the generators want to write into the user's repo.
