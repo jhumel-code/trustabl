@@ -60,7 +60,7 @@ against. Pick values from the table for the scope you're targeting.
 | `openai_tool`        | `@function_tool`-decorated Python function    |
 | `claude_sdk_tool`    | `@tool` / `@claude_tool` / `claude_agent_sdk` |
 | `mcp_tool`           | `@server.tool`, `@mcp.tool`, `.register_tool` |
-| `shell_invocation`   | Bare function that calls `subprocess.*` etc.  |
+| `shell_invocation`   | Bare function that calls `subprocess.*` etc. (no rules currently target this — OSH-* moved to a closed-source project) |
 
 **`scope: agent`** — receives an `AgentDef`; `applies_to` is matched against
 `AgentDef.Class` + `AgentDef.SDK`:
@@ -80,7 +80,7 @@ SDK enum values used by the `repo_has_sdk_in_code` predicate:
 | ------------------ | ------------------------------------ |
 | `claude_sdk`       | Claude Agent SDK                     |
 | `openai_agents`    | OpenAI Agents SDK                    |
-| `openshell`        | NVIDIA OpenShell SDK                 |
+| `openshell`        | NVIDIA OpenShell SDK (no rules currently target this — OSH-* moved to a closed-source project) |
 | `mcp`              | Model Context Protocol               |
 
 Repo-scope rules typically combine `applies_to` with a `repo_has_sdk_in_code`

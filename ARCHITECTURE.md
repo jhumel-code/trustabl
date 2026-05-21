@@ -11,13 +11,17 @@ this file is scoped to the Go binary in this repository.
 
 ## 1. Goal
 
-trustabl scans a Claude Agent SDK repository, finds reliability weaknesses in
-its tool definitions, and emits committable artifacts that close those gaps:
+trustabl scans an agent SDK repository (Claude Agent SDK, OpenAI Agents SDK,
+MCP), finds reliability weaknesses in its tool definitions, and emits
+committable artifacts that close those gaps:
 
 - `hooks/pretooluse_validate.py` and `hooks/posttooluse_log.py` — Claude Agent
   SDK hook scripts the user commits to their own repo.
-- `openshell/policy.yaml` — an NVIDIA OpenShell sandbox policy gating the
-  agent's runtime privileges.
+- `openshell/policy.yaml` — a defaults-only NVIDIA OpenShell sandbox policy
+  starter. The detection rules that would populate it shipped in a previous
+  version of trustabl and now live in a closed-source companion project; the
+  generator still emits a starter file so users have somewhere to begin
+  authoring policy by hand.
 
 Single Go binary, no daemon, no server. Web app and CI surfaces are out of
 scope for this skeleton (see `README.md` § Status).
@@ -238,7 +242,10 @@ than just text matching.
 
 2. **Bare functions that shell out.** Any `function_definition` not already
    captured above whose body calls `subprocess.*`, `os.system`, or `os.popen`
-   is a `KindShellInvocation`. These feed the OpenShell detectors.
+   is a `KindShellInvocation`. These are surfaced in the inventory and feed
+   `SDKsDetected` so a META-001 finding flags the repo as using an
+   unaudited SDK. The OpenShell detection rules that previously consumed
+   these tools moved to a closed-source companion project.
 
 Each `ToolDef` carries `Language: python` (set unconditionally today —
 discovery is python-only).
@@ -322,11 +329,6 @@ Shipped rules (one row per YAML rule entry):
 | CSDK-006 | tool | claude_sdk | medium   | `claude_sdk/idempotency.yaml`            | Mutating verb in name + no idempotency-key param                    |
 | CSDK-007 | tool | claude_sdk | low      | `claude_sdk/tool_definition.yaml`        | Ambiguous name (`process`, `handle`, `run`, …)                      |
 | CSDK-101 | agent | claude_sdk | high    | `claude_sdk/agent_safety.yaml`           | Claude `AgentDefinition` subagent granted the built-in `Bash` tool  |
-| OSH-001 | tool  | openshell  | critical | `openshell/shell.yaml`                   | `subprocess(..., shell=True)`                                       |
-| OSH-002 | tool  | openshell  | high     | `openshell/shell.yaml`                   | Shell call without `ALLOWED_COMMANDS` allowlist                     |
-| OSH-003 | tool  | openshell  | high     | `openshell/filesystem.yaml`              | `open(..., "w")` / `shutil.move`/`rmtree` etc.                      |
-| OSH-004 | repo  | openshell  | medium   | `openshell/resources.yaml`               | No resource limits configured anywhere                              |
-| OSH-005 | tool  | openshell  | high     | `openshell/network.yaml`                 | HTTP call with dynamic URL + no host allowlist                      |
 | OAI-001 | tool  | openai_sdk | low      | `openai_sdk/tool_definition.yaml`        | Tool function has no docstring                                      |
 | OAI-002 | tool  | openai_sdk | medium   | `openai_sdk/tool_definition.yaml`        | Tool has no type-annotated parameters                               |
 | OAI-003 | tool  | openai_sdk | medium   | `openai_sdk/decorator_config.yaml`       | `@function_tool(strict_mode=False)` — schema not enforced           |
@@ -375,13 +377,14 @@ bug.
   a runtime mutation rather than a code change). `stanzaForFinding` maps each
   hook-eligible rule to the Python lines it injects.
 - **Policy** ([policy.go](internal/generation/policy.go)) — emits
-  `openshell/policy.yaml`. With no OSH findings the generator still produces a
-  defaults-only policy so the user has a starter file. Each OSH rule maps to a
-  policy field: OSH-001 → globalDeny; OSH-002 → per-tool commands.allowed;
-  OSH-003 → per-tool filesystem.writePrefixes; OSH-005 → per-tool
-  network.allowedHosts. Placeholders are emitted as `# TODO:` comments so
-  users see what to fill in, rather than the generator inventing plausible
-  values.
+  `openshell/policy.yaml`. The generator currently always produces a
+  defaults-only starter policy, because the OpenShell detection rule pack
+  (OSH-001..005) was removed from this open-source repo and moved to a
+  closed-source companion project. The generator's per-rule field mapping
+  (OSH-001 → globalDeny, OSH-002 → per-tool commands.allowed, OSH-003 →
+  per-tool filesystem.writePrefixes, OSH-005 → per-tool
+  network.allowedHosts) is preserved in code so the rule pack can be
+  re-introduced or re-wired without engine changes.
 
 The OpenShell schema (`apiVersion: openshell.nvidia.com/v1`, `kind:
 SandboxPolicy`) is the generator's interpretation pending the real spec link;
@@ -690,11 +693,7 @@ internal/
 │       │   ├── agent_safety.yaml      OAI-101, OAI-102, OAI-103, OAI-104
 │       │   ├── mcp_safety.yaml        OAI-105
 │       │   └── tracing.yaml           OAI-201
-│       └── openshell/
-│           ├── shell.yaml             OSH-001, OSH-002
-│           ├── filesystem.yaml        OSH-003
-│           ├── resources.yaml         OSH-004
-│           └── network.yaml           OSH-005
+│       └── (no openshell/ — OSH-001..005 moved to a closed-source project)
 ├── generation/                  Hooks + Policy generators (deterministic).
 ├── review/                      Human renderer, apply, export ZIP.
 └── inference/                   BYOK inference router (stub; cache only).
@@ -752,7 +751,7 @@ rules:
 
 ### Adding a rule
 
-1. Pick the right category subdirectory (`claude_sdk/`, `openai_sdk/`, or `openshell/`).
+1. Pick the right category subdirectory (`claude_sdk/` or `openai_sdk/`).
 2. Either append to an existing topic file or create a new `<topic>.yaml`
    file — the loader walks recursively so new files are picked up
    automatically by `go:embed`.

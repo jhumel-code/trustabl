@@ -1,9 +1,15 @@
 # trustabl
 
 Static analyzer for agent reliability. Scans an agent SDK repo (Claude Agent
-SDK, OpenAI Agents SDK, MCP, OpenShell), finds reliability and safety
-weaknesses, emits committable artifacts (Pre/PostToolUse hook configs +
-NVIDIA OpenShell sandbox policies).
+SDK, OpenAI Agents SDK, MCP), finds reliability and safety weaknesses, emits
+committable artifacts (Pre/PostToolUse hook configs + a defaults-only
+OpenShell sandbox-policy starter).
+
+OpenShell-related code is still discovered (shell-invocation surfaces,
+`openshell/*.yaml` sandbox policies, `openshell` deps), but the OSH-* rule
+pack that previously audited it has moved to a closed-source companion
+project. Repos that use OpenShell now produce a META-001 info finding
+flagging it as an unaudited SDK.
 
 Implements the Phase 1 MVP scope of *Trustabl Architecture v1 (Strawman)* as a single
 Go binary.
@@ -95,8 +101,11 @@ trustabl scan https://github.com/org/repo
 
 # Restrict detectors
 trustabl scan ./repo --detectors claude_sdk
-trustabl scan ./repo --detectors openshell
-trustabl scan ./repo --detectors claude_sdk,openshell
+trustabl scan ./repo --detectors openai_sdk
+trustabl scan ./repo --detectors claude_sdk,openai_sdk
+
+# --detectors openshell is still accepted but selects zero rules
+# (the OSH-* pack moved to a closed-source companion project).
 
 # Apply generated artifacts (writes hooks/ and openshell/ into the repo;
 # requires --yes or interactive approval)
@@ -216,10 +225,19 @@ evolving layer (see [Detection rules](#detection-rules) below).
 
 ### NVIDIA OpenShell
 
-- **Sandbox policy files recognized**: `openshell/*.yaml` and `*.yml`.
+- **Sandbox policy files recognized**: `openshell/*.yaml` and `*.yml` are
+  surfaced as `sandbox_policy` components.
 - **Shell-invocation surfaces**: any bare function whose body calls
   `subprocess.*`, `os.system`, or `os.popen` is classified as
-  `shell_invocation` and feeds the OpenShell sandbox-policy generator.
+  `shell_invocation` in the inventory.
+- **No detection rules ship here.** The OSH-* rule pack that previously
+  audited these surfaces has moved to a closed-source companion project.
+  Repos that contain shell-invocation tools produce a META-001 info
+  finding ("trustabl does not currently audit this SDK") rather than
+  firing the OSH rules.
+- **Policy generator output** is now a defaults-only `openshell/policy.yaml`
+  starter — the generator still emits a file, but with no OSH findings to
+  shape it, the contents are baseline defaults the user authors against.
 
 ### Cross-SDK agent components
 
@@ -260,7 +278,7 @@ field is in place for multi-language rule sets when those parsers ship.
 ### Detection rules
 
 Rule packs are organized per SDK under
-`internal/rules/policies/{claude_sdk,openai_sdk,openshell}/<topic>.yaml`,
+`internal/rules/policies/{claude_sdk,openai_sdk}/<topic>.yaml`,
 embedded at build time via `go:embed`. **The rule catalog is in active
 development** — IDs, severities, predicates, and the rules-shipped set
 itself are not yet stable. They have not been validated against a labelled
@@ -268,4 +286,5 @@ real-agent corpus (see [ARCHITECTURE.md §10](ARCHITECTURE.md#10-what-is-intenti
 Treat findings as signal to investigate, not as a fixed contract.
 
 Naming convention (subject to change): `CSDK-NNN` for Claude Agent SDK,
-`OAI-NNN` for OpenAI Agents SDK, `OSH-NNN` for OpenShell.
+`OAI-NNN` for OpenAI Agents SDK. (OSH-NNN OpenShell rules previously
+shipped here; that pack moved to a closed-source companion project.)
