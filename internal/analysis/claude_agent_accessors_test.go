@@ -67,3 +67,41 @@ agent = Agent(name="x", tools=[])
 		t.Errorf("OpenAI agent should return nil from Claude accessor, got %v", got)
 	}
 }
+
+func TestClaudeAccessors_ToolsNonListReturnsNil(t *testing.T) {
+	src := `
+from claude_agent_sdk import AgentDefinition
+MY_TOOLS = ["Bash"]
+agent = AgentDefinition(description="d", prompt="p", tools=MY_TOOLS)
+`
+	pf := parsePyFile(t, "main.py", src)
+	a := analysis.DiscoverAgents([]analysis.ParsedFile{pf})[0]
+	if got := analysis.ClaudeBuiltinTools(&a); got != nil {
+		t.Errorf("tools set to a name ref should yield nil, got %v", got)
+	}
+}
+
+func TestClaudeAccessors_PermissionModeNonStringReturnsEmpty(t *testing.T) {
+	src := `
+from claude_agent_sdk import AgentDefinition
+agent = AgentDefinition(description="d", prompt="p", permissionMode=PermissionMode.ACCEPT_EDITS)
+`
+	pf := parsePyFile(t, "main.py", src)
+	a := analysis.DiscoverAgents([]analysis.ParsedFile{pf})[0]
+	if got := analysis.ClaudePermissionMode(&a); got != "" {
+		t.Errorf("permissionMode set to an enum ref should yield empty string, got %q", got)
+	}
+}
+
+func TestClaudeAccessors_MCPServersMixedListDropsDicts(t *testing.T) {
+	src := `
+from claude_agent_sdk import AgentDefinition
+agent = AgentDefinition(description="d", prompt="p", mcpServers=["github", {"transport": "sse"}])
+`
+	pf := parsePyFile(t, "main.py", src)
+	a := analysis.DiscoverAgents([]analysis.ParsedFile{pf})[0]
+	got := analysis.ClaudeMCPServers(&a)
+	if len(got) != 1 || got[0] != "github" {
+		t.Errorf("mixed [str, dict] mcpServers list should keep only string entries, got %v", got)
+	}
+}

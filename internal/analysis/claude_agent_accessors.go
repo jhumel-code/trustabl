@@ -29,7 +29,7 @@ func ClaudePermissionMode(a *models.AgentDef) string {
 	if !isClaudeAgentDef(a) {
 		return ""
 	}
-	kw := readChild(a, "permissionMode")
+	kw := agentKwarg(a, "permissionMode")
 	if kw == nil || kw.Value == nil || kw.Value.Kind != models.ExprLiteralString {
 		return ""
 	}
@@ -51,15 +51,8 @@ func isClaudeAgentDef(a *models.AgentDef) bool {
 	return a != nil && a.SDK == models.SDKClaudeAgentSDK && a.Class == "AgentDefinition"
 }
 
-func readChild(a *models.AgentDef, key string) *models.KwargTree {
-	if a == nil || a.Kwargs == nil {
-		return nil
-	}
-	return a.Kwargs.Children[key]
-}
-
 func readStringList(a *models.AgentDef, key string) []string {
-	kw := readChild(a, key)
+	kw := agentKwarg(a, key)
 	if kw == nil || kw.Value == nil || kw.Value.Kind != models.ExprList {
 		return nil
 	}
@@ -69,6 +62,9 @@ func readStringList(a *models.AgentDef, key string) []string {
 			continue
 		}
 		out = append(out, strings.Trim(item.Text, `"'`))
+	}
+	if len(out) == 0 {
+		return nil
 	}
 	return out
 }
