@@ -2,6 +2,7 @@ package models_test
 
 import (
 	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/trustabl/trustabl/internal/models"
@@ -21,7 +22,7 @@ func TestHostedToolDef_JSONShape(t *testing.T) {
 	}
 	got := string(b)
 	for _, want := range []string{`"class":"WebSearchTool"`, `"sdk":"openai_agents"`, `"file_path":"agents/search.py"`, `"line":16`} {
-		if !contains(got, want) {
+		if !strings.Contains(got, want) {
 			t.Errorf("missing %q in %s", want, got)
 		}
 	}
@@ -36,11 +37,3 @@ func TestAgentDef_HostedToolRefsField(t *testing.T) {
 	}
 }
 
-func contains(s, sub string) bool {
-	for i := 0; i+len(sub) <= len(s); i++ {
-		if s[i:i+len(sub)] == sub {
-			return true
-		}
-	}
-	return false
-}

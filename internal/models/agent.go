@@ -87,7 +87,7 @@ type SessionUse struct {
 // list. Hosted tools have no function body — they are SDK-managed runtimes —
 // so unlike ToolDef they carry no docstring, params, or facts.
 type HostedToolDef struct {
-	Class    string     `json:"class"` // "WebSearchTool", "FileSearchTool", ...
+	Class    string     `json:"class"` // "WebSearchTool", "FileSearchTool", "ComputerTool", ...
 	SDK      SDK        `json:"sdk"`
 	FilePath string     `json:"file_path"`
 	Line     int        `json:"line"`
