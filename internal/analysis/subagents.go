@@ -36,28 +36,54 @@ func DiscoverSubagents(manifest models.ScanManifest) []models.SubagentDef {
 		if err := yaml.Unmarshal(fm, &parsed); err != nil {
 			continue
 		}
+		if parsed.Name == "" {
+			continue
+		}
 		out = append(out, models.SubagentDef{
 			Name:        parsed.Name,
 			Description: parsed.Description,
 			Model:       parsed.Model,
 			FilePath:    c.Path,
-			Tools:       splitToolsField(parsed.Tools),
+			Tools:       splitToolsField([]string(parsed.Tools)),
 		})
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].FilePath < out[j].FilePath })
 	return out
 }
 
-type subagentFrontmatter struct {
-	Name        string `yaml:"name"`
-	Description string `yaml:"description"`
-	Tools       string `yaml:"tools"` // comma-separated string in the wild
-	Model       string `yaml:"model"`
+// stringOrList unmarshals a YAML value that may be either a scalar string or
+// a sequence of strings into a []string. Claude subagent frontmatter uses both
+// forms for the `tools:` field in the wild.
+type stringOrList []string
+
+func (s *stringOrList) UnmarshalYAML(value *yaml.Node) error {
+	if value.Kind == yaml.ScalarNode {
+		*s = stringOrList{value.Value}
+		return nil
+	}
+	var list []string
+	if err := value.Decode(&list); err != nil {
+		return err
+	}
+	*s = stringOrList(list)
+	return nil
 }
 
-// extractFrontmatter pulls the YAML block between leading "---\n" and the
-// next "---" line. Returns (block, true) on success, (nil, false) if the
-// file does not start with "---".
+type subagentFrontmatter struct {
+	Name        string       `yaml:"name"`
+	Description string       `yaml:"description"`
+	Tools       stringOrList `yaml:"tools"`
+	Model       string       `yaml:"model"`
+}
+
+// extractFrontmatter pulls the YAML block between leading "---\n" (or
+// "---\r\n") and the next line beginning with "---". Returns (block, true) on
+// success, (nil, false) if the file does not start with "---".
+//
+// Known v1 limitations: a line beginning with "---" inside the frontmatter
+// body (e.g. a YAML document separator in a block scalar) truncates the block
+// early; and on CRLF files a trailing "\r" is left on the last block line,
+// which yaml.v3 tolerates.
 func extractFrontmatter(raw []byte) ([]byte, bool) {
 	hasLF := bytes.HasPrefix(raw, []byte("---\n"))
 	hasCRLF := bytes.HasPrefix(raw, []byte("---\r\n"))
@@ -75,15 +101,16 @@ func extractFrontmatter(raw []byte) ([]byte, bool) {
 	return rest[:end], true
 }
 
-func splitToolsField(raw string) []string {
-	if strings.TrimSpace(raw) == "" {
-		return nil
-	}
-	parts := strings.Split(raw, ",")
-	out := make([]string, 0, len(parts))
-	for _, p := range parts {
-		if t := strings.TrimSpace(p); t != "" {
-			out = append(out, t)
+// splitToolsField normalizes the frontmatter tools entries into a flat slice.
+// Each entry is comma-split so the scalar form ("Read, Bash, Grep") expands;
+// YAML-list entries (no comma) pass through unchanged. Returns nil when empty.
+func splitToolsField(raw []string) []string {
+	var out []string
+	for _, entry := range raw {
+		for _, p := range strings.Split(entry, ",") {
+			if t := strings.TrimSpace(p); t != "" {
+				out = append(out, t)
+			}
 		}
 	}
 	return out

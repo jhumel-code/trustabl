@@ -97,3 +97,53 @@ func TestSubagents_ModelField(t *testing.T) {
 		t.Errorf("expected model=haiku, got %+v", got)
 	}
 }
+
+func TestSubagents_ToolsAsYAMLList(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, dir, ".claude/agents/listy.md", "---\nname: listy\ndescription: D\ntools:\n  - Read\n  - Bash\n  - Grep\n---\n")
+	manifest := models.ScanManifest{
+		RepoRoot: dir,
+		Components: []models.AgentComponent{
+			{Kind: models.ComponentSubagent, Path: ".claude/agents/listy.md"},
+		},
+	}
+	got := analysis.DiscoverSubagents(manifest)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 subagent (YAML-list tools must not skip the file), got %d", len(got))
+	}
+	if !reflect.DeepEqual(got[0].Tools, []string{"Read", "Bash", "Grep"}) {
+		t.Errorf("Tools = %v, want [Read Bash Grep]", got[0].Tools)
+	}
+}
+
+func TestSubagents_FrontmatterWithoutNameSkipped(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, dir, ".claude/agents/noname.md", "---\ndescription: has a description but no name\ntools: Read\n---\n")
+	manifest := models.ScanManifest{
+		RepoRoot: dir,
+		Components: []models.AgentComponent{
+			{Kind: models.ComponentSubagent, Path: ".claude/agents/noname.md"},
+		},
+	}
+	if got := analysis.DiscoverSubagents(manifest); len(got) != 0 {
+		t.Errorf("expected zero subagents (frontmatter with no name must be skipped), got %+v", got)
+	}
+}
+
+func TestSubagents_CRLFLineEndings(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, dir, ".claude/agents/crlf.md", "---\r\nname: crlf\r\ndescription: D\r\ntools: Read, Bash\r\n---\r\n\r\nBody\r\n")
+	manifest := models.ScanManifest{
+		RepoRoot: dir,
+		Components: []models.AgentComponent{
+			{Kind: models.ComponentSubagent, Path: ".claude/agents/crlf.md"},
+		},
+	}
+	got := analysis.DiscoverSubagents(manifest)
+	if len(got) != 1 || got[0].Name != "crlf" {
+		t.Fatalf("expected 1 subagent named crlf from a CRLF file, got %+v", got)
+	}
+	if !reflect.DeepEqual(got[0].Tools, []string{"Read", "Bash"}) {
+		t.Errorf("Tools = %v, want [Read Bash]", got[0].Tools)
+	}
+}
