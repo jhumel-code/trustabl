@@ -98,3 +98,61 @@ func TestClaudeSettings_MalformedJSONSkipped(t *testing.T) {
 		t.Errorf("expected zero settings from malformed JSON, got %+v", got)
 	}
 }
+
+func TestClaudeSettings_EnvNullIsNotPresent(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, dir, ".claude/settings.json", `{"env": null, "hooks": null}`)
+	manifest := models.ScanManifest{
+		RepoRoot: dir,
+		Components: []models.AgentComponent{
+			{Kind: models.ComponentClaudeSettings, Path: ".claude/settings.json"},
+		},
+	}
+	got := analysis.DiscoverClaudeSettings(manifest)
+	if len(got) != 1 {
+		t.Fatalf("expected 1 settings record, got %d", len(got))
+	}
+	if got[0].HasEnvBlock {
+		t.Errorf(`"env": null must yield HasEnvBlock=false`)
+	}
+	if got[0].HasHooks {
+		t.Errorf(`"hooks": null must yield HasHooks=false`)
+	}
+}
+
+func TestClaudeSettings_SandboxBlockDetected(t *testing.T) {
+	dir := t.TempDir()
+	writeFixture(t, dir, ".claude/settings.json", `{"sandbox": {"networkAccess": "localhost-only"}}`)
+	manifest := models.ScanManifest{
+		RepoRoot: dir,
+		Components: []models.AgentComponent{
+			{Kind: models.ComponentClaudeSettings, Path: ".claude/settings.json"},
+		},
+	}
+	got := analysis.DiscoverClaudeSettings(manifest)
+	if len(got) != 1 || !got[0].HasSandboxBlock {
+		t.Fatalf("expected HasSandboxBlock=true, got %+v", got)
+	}
+}
+
+func TestParsePermissionRule_EdgeCases(t *testing.T) {
+	cases := []struct {
+		raw, tool, pattern string
+	}{
+		{"Bash()", "Bash", ""},       // empty parens — not distinguished from bare "Bash"
+		{"mcp__", "", ""},            // bare mcp__ prefix, nothing after — unrecognized
+		{"Bash(unclosed", "", ""},    // malformed — unrecognized, Raw preserved
+		{"", "", ""},                 // empty string
+	}
+	for _, c := range cases {
+		t.Run(c.raw, func(t *testing.T) {
+			got := analysis.ParsePermissionRule(c.raw)
+			if got.Tool != c.tool || got.Pattern != c.pattern {
+				t.Errorf("ParsePermissionRule(%q) = %+v, want tool=%q pattern=%q", c.raw, got, c.tool, c.pattern)
+			}
+			if got.Raw != c.raw {
+				t.Errorf("ParsePermissionRule(%q).Raw = %q, want %q", c.raw, got.Raw, c.raw)
+			}
+		})
+	}
+}
