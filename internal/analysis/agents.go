@@ -74,6 +74,15 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 		toolsKwarg := agentKwarg(a, "tools")
 		if toolsKwarg != nil && toolsKwarg.Value != nil && toolsKwarg.Value.Kind == models.ExprList {
 			for _, item := range toolsKwarg.Value.List {
+				// Hosted-tool call (e.g. WebSearchTool()) — emit a HostedToolDef
+				// and a HostedToolRef. These never resolve to a ToolDef.
+				if h, ok := extractHostedToolFromCall(item, a.FilePath, a.Line); ok {
+					inv.HostedTools = append(inv.HostedTools, h)
+					ref := models.HostedToolRef{Class: h.Class}
+					ref.Resolved = &inv.HostedTools[len(inv.HostedTools)-1]
+					a.HostedToolRefs = append(a.HostedToolRefs, ref)
+					continue
+				}
 				ref := models.ToolRef{Name: item.Text}
 				var td *models.ToolDef
 				if t := toolsByFileSym[a.FilePath][item.Text]; t != nil {
@@ -101,6 +110,26 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 
 		resolveGuardKwarg(a, "input_guardrails", &a.InputGuards, guardsByFileSym[a.FilePath])
 		resolveGuardKwarg(a, "output_guardrails", &a.OutputGuards, guardsByFileSym[a.FilePath])
+	}
+
+	sortHostedTools(inv.HostedTools)
+
+	// Re-resolve HostedToolRef pointers after sorting (the append-and-take-address
+	// pattern in the loop above can leave stale pointers if the backing array
+	// reallocated, and the sort definitely moves elements). Match by
+	// (Class, owning-agent FilePath, owning-agent Line).
+	for i := range inv.Agents {
+		a := &inv.Agents[i]
+		for j := range a.HostedToolRefs {
+			ref := &a.HostedToolRefs[j]
+			for k := range inv.HostedTools {
+				h := &inv.HostedTools[k]
+				if h.Class == ref.Class && h.FilePath == a.FilePath && h.Line == a.Line {
+					ref.Resolved = h
+					break
+				}
+			}
+		}
 	}
 }
 
