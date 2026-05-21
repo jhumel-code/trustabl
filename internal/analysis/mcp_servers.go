@@ -3,6 +3,9 @@ package analysis
 import (
 	"sort"
 
+	sitter "github.com/smacker/go-tree-sitter"
+
+	"github.com/trustabl/trustabl/internal/analysis/astutil"
 	"github.com/trustabl/trustabl/internal/models"
 )
 
@@ -60,4 +63,69 @@ func sortMCPServers(ms []models.MCPServerDef) {
 		}
 		return ms[i].Class < ms[j].Class
 	})
+}
+
+// collectWithStatementMCPAliases walks a parsed file and returns a map from
+// alias name → MCPServerDef for every `with` / `async with MCPServer*(...) as
+// alias:` statement. Only the Class/Transport/SDK of the returned value are
+// authoritative; callers re-attribute FilePath/Line to the using agent.
+//
+// tree-sitter-python shape for `async with X() as y:`:
+//
+//	with_statement
+//	  └─ with_clause
+//	       └─ with_item            (field "value" → as_pattern)
+//	            └─ as_pattern
+//	                 ├─ call               (named child 0)
+//	                 └─ as_pattern_target  (field "alias")
+//	                      └─ identifier
+func collectWithStatementMCPAliases(pf ParsedFile) map[string]models.MCPServerDef {
+	out := make(map[string]models.MCPServerDef)
+	astutil.Walk(pf.Tree.RootNode(), func(n *sitter.Node) bool {
+		if n.Type() != "with_statement" {
+			return true
+		}
+		for i := 0; i < int(n.NamedChildCount()); i++ {
+			clause := n.NamedChild(i)
+			if clause.Type() != "with_clause" {
+				continue
+			}
+			for j := 0; j < int(clause.NamedChildCount()); j++ {
+				item := clause.NamedChild(j)
+				if item.Type() != "with_item" {
+					continue
+				}
+				value := item.ChildByFieldName("value")
+				if value == nil || value.Type() != "as_pattern" {
+					continue
+				}
+				callNode := value.NamedChild(0)
+				aliasField := value.ChildByFieldName("alias")
+				if callNode == nil || aliasField == nil || callNode.Type() != "call" {
+					continue
+				}
+				aliasNode := aliasField
+				if aliasField.NamedChildCount() > 0 {
+					aliasNode = aliasField.NamedChild(0)
+				}
+				fn := callNode.ChildByFieldName("function")
+				if fn == nil {
+					continue
+				}
+				name := astutil.NodeText(fn, pf.Source)
+				if !IsMCPServerClass(name) {
+					continue
+				}
+				out[astutil.NodeText(aliasNode, pf.Source)] = models.MCPServerDef{
+					Class:     name,
+					Transport: MCPTransportFromClass(name),
+					SDK:       models.SDKOpenAIAgents,
+					FilePath:  pf.RelPath,
+					Line:      int(callNode.StartPoint().Row) + 1,
+				}
+			}
+		}
+		return true
+	})
+	return out
 }

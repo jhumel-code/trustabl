@@ -65,6 +65,11 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 
 	importsByFile := buildImportsByFile(parsed)
 
+	mcpAliasesByFile := make(map[string]map[string]models.MCPServerDef)
+	for _, pf := range parsed {
+		mcpAliasesByFile[pf.RelPath] = collectWithStatementMCPAliases(pf)
+	}
+
 	for i := range inv.Agents {
 		a := &inv.Agents[i]
 		if a.Opaque {
@@ -116,8 +121,25 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 					a.MCPServerRefs = append(a.MCPServerRefs, models.MCPServerRef{Class: m.Class})
 					continue
 				}
-				// ExprNameRef (alias from `async with X as srv`) and other shapes
-				// land in task 4. For now, mark as External so we don't lose count.
+				// Alias from `async with MCPServer*(...) as srv:`. The def is
+				// attributed to the AGENT's line (not the with-statement line)
+				// so the post-sort re-resolution loop — keyed on
+				// (agent.FilePath, agent.Line, Class) — matches it uniformly
+				// with inline servers. v1 simplification: one alias referenced
+				// by N agents yields N MCPServerDef entries, one per agent.
+				if item.Kind == models.ExprNameRef {
+					if aliasDef, ok := mcpAliasesByFile[a.FilePath][item.Text]; ok {
+						inv.MCPServers = append(inv.MCPServers, models.MCPServerDef{
+							Class:     aliasDef.Class,
+							Transport: aliasDef.Transport,
+							SDK:       models.SDKOpenAIAgents,
+							FilePath:  a.FilePath,
+							Line:      a.Line,
+						})
+						a.MCPServerRefs = append(a.MCPServerRefs, models.MCPServerRef{Class: aliasDef.Class})
+						continue
+					}
+				}
 				a.MCPServerRefs = append(a.MCPServerRefs, models.MCPServerRef{
 					Class:    item.Text,
 					External: true,
