@@ -18,7 +18,7 @@ Legend: ✅ full · ◐ partial · ❌ none · — N/A
 | **OpenAI Agents SDK** | Python | ✅ dep-scan + file inventory | ✅ tools, hosted tools (11 classes), agents, MCP servers (3 transports + alias), guardrails, sessions | ✅ OAI-001..006 (tool), OAI-101..105 (agent), OAI-201 (repo) | ❌ no OpenAI-specific artifacts |
 | **OpenAI Agents SDK** | TypeScript | ◐ file inventory only | ❌ no TS AST parser | ❌ | ❌ |
 | **MCP** | Python | ✅ tool registrations + config files | ◐ tool registrations only (no server-side resource/prompt discovery) | ❌ no dedicated pack (KindMCPTool is reachable by some CSDK rules' `applies_to`) | ❌ |
-| **MCP** | TypeScript / Go / Rust | ◐ file inventory only | ❌ | ❌ | ❌ |
+| **MCP** | TypeScript / Go / Rust | ❌ no MCP-specific recognition (file paths inventoried generically, no MCP parser or dep needles) | ❌ | ❌ | ❌ |
 | **Google ADK** | Python | ❌ no dep needle, no AST | ❌ | ❌ | ❌ |
 | **Google ADK** | TypeScript / Go / Java / Kotlin | ❌ | ❌ | ❌ | ❌ |
 | **OpenShell** | Python | ✅ shell-invocation discovery + `openshell/*.yaml` policy files surfaced | ✅ `KindShellInvocation` tools | ❌ rules moved to closed-source companion project (META-001 fires instead) | ✅ defaults-only `openshell/policy.yaml` starter |
@@ -80,7 +80,7 @@ instead of firing the OSH rules.
 | **OpenAI Agents SDK TypeScript** (`@openai/agents`) | Same as above — TS parser + discovery for `Agent`/`tool()` factory shape. The npm package uses a different shape than Python (e.g. `tool({})` factory rather than `@function_tool` decorator) |
 | **Google ADK Python** ([`google/adk-python`](https://github.com/google/adk-python)) | New dep needle (`google-adk`), discovery for the ADK shapes — `LlmAgent`, `SequentialAgent`, `ParallelAgent`, `BaseTool`, `FunctionTool`, Workflow Runtime nodes. New SDK constant `SDKGoogleADK`, new component kind for ADK config |
 | **Google ADK TypeScript** ([`google/adk-js`](https://github.com/google/adk-js)) | Depends on TS parser landing for any TS work; then ADK-JS-specific shape discovery |
-| **MCP cross-language** (TS, Rust, Go) | Depends on per-language parsers. Today only Python MCP shapes are extracted |
+| **MCP cross-language** (TS, Rust, Go) | Two prerequisites are missing today: (1) MCP dep-scan needles in `internal/ingestion/normalizer.go` — currently only `claude-agent-sdk` / `claude_agent_sdk` / `openai-agents` / `@openai/agents` are matched; there is no `@modelcontextprotocol/sdk` (npm), no `rmcp` / `anthropic-mcp` (Cargo), no Go MCP module needle. (2) per-language AST parsers and discovery for the SDK shapes (`Server.tool()` factory in TS, `#[tool]` macros in Rust, etc.). File paths are recorded by the generic walk but no MCP-specific extraction happens against them |
 | **MCP server-side completeness** | We discover tools registered with `@server.tool` etc., but don't extract `Prompt`, `Resource`, `Sampling` registrations — those exist in the spec and would be a small additional pass |
 
 ## Recommended next moves
