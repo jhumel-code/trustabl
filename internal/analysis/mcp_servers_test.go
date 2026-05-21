@@ -65,4 +65,13 @@ agent = Agent(name="x", mcp_servers=[SomethingElse()])
 	if len(inv.MCPServers) != 0 {
 		t.Errorf("expected zero MCP servers, got %+v", inv.MCPServers)
 	}
+	if len(inv.Agents) != 1 {
+		t.Fatalf("expected 1 agent, got %d", len(inv.Agents))
+	}
+	if len(inv.Agents[0].MCPServerRefs) != 1 {
+		t.Fatalf("expected 1 MCPServerRef (count-preserving fallthrough), got %d", len(inv.Agents[0].MCPServerRefs))
+	}
+	if !inv.Agents[0].MCPServerRefs[0].External {
+		t.Errorf("expected External=true for unrecognized class ref so Task 4 alias resolution can find it")
+	}
 }

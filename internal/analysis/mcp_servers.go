@@ -37,6 +37,10 @@ func classifyMCPServerCall(callItem models.Expr, filePath string, line int) (mod
 	if !IsMCPServerClass(name) {
 		return models.MCPServerDef{}, false
 	}
+	// Kwargs intentionally not captured at v1 — Expr.Text preserves the raw
+	// call site for any future detector that needs the args (e.g. inspecting
+	// MCPServerStdio params.command). Reparsing the kwargs from the ExprCall
+	// text into MCPServerDef.Kwargs is a fast-follow if a rule needs them.
 	return models.MCPServerDef{
 		Class:     name,
 		Transport: MCPTransportFromClass(name),

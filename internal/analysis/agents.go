@@ -123,6 +123,13 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 					External: true,
 				})
 			}
+		} else if mcpKwarg != nil {
+			// Intentional asymmetry vs. tools=: a non-list mcp_servers= value
+			// (e.g. mcp_servers=server_list_var) does NOT set a.Opaque, because
+			// MCP-server opaqueness is orthogonal to tool-list opaqueness for
+			// downstream rules. A future rule that needs an "MCP servers were
+			// declared but their identities are opaque" signal would set a
+			// dedicated flag on AgentDef, not reuse Opaque.
 		}
 
 		resolveGuardKwarg(a, "input_guardrails", &a.InputGuards, guardsByFileSym[a.FilePath])
