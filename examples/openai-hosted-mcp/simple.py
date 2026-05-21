@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 import asyncio
 
 from agents import Agent, HostedMCPTool, ModelSettings, Runner, RunResult, RunResultStreaming

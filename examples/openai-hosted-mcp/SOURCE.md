@@ -1,7 +1,8 @@
 # Source: openai-agents-python
 
-Vendored from https://github.com/openai/openai-agents-python at commit
-`45effb4b7d7de1226ebba7ba304bccfcf0a37fdf`, path `examples/hosted_mcp/simple.py`.
+Local file `simple.py` is a verbatim copy of upstream `examples/hosted_mcp/simple.py`,
+vendored from https://github.com/openai/openai-agents-python at commit
+`45effb4b7d7de1226ebba7ba304bccfcf0a37fdf`.
 
 License: MIT (see `../LICENSES/openai-agents-python-MIT.txt`).
 
