@@ -225,6 +225,10 @@ type ScanResult struct {
 	Manifest           ScanManifest        `json:"manifest"`
 	Tools              []ToolDef           `json:"tools"`
 	Agents             []AgentDef          `json:"agents"`
+	HostedTools        []HostedToolDef     `json:"hosted_tools"`
+	MCPServers         []MCPServerDef      `json:"mcp_servers"`
+	Subagents          []SubagentDef       `json:"subagents"`
+	ClaudeSettings     []ClaudeSettings    `json:"claude_settings"`
 	Findings           []Finding           `json:"findings"`
 	Readiness          []ToolReadiness     `json:"readiness"`
 	OverallScore       float64             `json:"overall_score"`

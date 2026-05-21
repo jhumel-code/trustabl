@@ -59,3 +59,21 @@ func TestScanExamples_NoCrash(t *testing.T) {
 		t.Skip("examples/ has no scannable subdirectories")
 	}
 }
+
+func TestScan_SurfacesNewInventoryFields(t *testing.T) {
+	_, thisFile, _, _ := runtime.Caller(0)
+	target := filepath.Join(filepath.Dir(thisFile), "..", "..", "examples", "financial_research_agent")
+	res, err := scanner.Run(scanner.Config{Target: target})
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+	foundWebSearch := false
+	for _, h := range res.HostedTools {
+		if h.Class == "WebSearchTool" {
+			foundWebSearch = true
+		}
+	}
+	if !foundWebSearch {
+		t.Errorf("expected WebSearchTool in ScanResult.HostedTools, got %+v", res.HostedTools)
+	}
+}
