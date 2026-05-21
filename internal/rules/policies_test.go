@@ -873,6 +873,37 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.RepoInventory{},
 		false},
 
+	// ─── OAI-109 WebSearchTool without input_guardrails ─────────────────────
+	{"OAI-109 fires when WebSearchTool present and no input_guardrails", "OAI-109",
+		models.AgentDef{
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			ToolRefs: []models.ToolRef{{Name: "WebSearchTool()", External: true}},
+		},
+		models.RepoInventory{},
+		true},
+	{"OAI-109 silent when input_guardrails present", "OAI-109",
+		models.AgentDef{
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			ToolRefs: []models.ToolRef{{Name: "WebSearchTool()", External: true}},
+			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
+				"input_guardrails": {Value: &models.Expr{Kind: models.ExprList, List: []models.Expr{
+					{Kind: models.ExprNameRef, Text: "check_query"},
+				}}},
+			}},
+		},
+		models.RepoInventory{},
+		false},
+	{"OAI-109 silent when no WebSearchTool", "OAI-109",
+		models.AgentDef{
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			ToolRefs: []models.ToolRef{{Name: "my_func", Resolved: &models.ToolDef{Kind: models.KindOpenAITool}}},
+		},
+		models.RepoInventory{},
+		false},
+
 	// ─── CSDK-101 Claude subagent granted Bash ────────────────────────────────
 	{"CSDK-101 fires when AgentDefinition grants Bash", "CSDK-101",
 		models.AgentDef{
@@ -895,6 +926,32 @@ var policyAgentRuleCases = []policyAgentCase{
 			ToolRefs: []models.ToolRef{
 				{Name: `"WebSearch"`, External: true},
 				{Name: `"Write"`, External: true},
+			},
+		},
+		models.RepoInventory{},
+		false},
+
+	// ─── CSDK-102 Claude subagent granted WebSearch ───────────────────────────
+	{"CSDK-102 fires when AgentDefinition grants WebSearch", "CSDK-102",
+		models.AgentDef{
+			SDK:   models.SDKClaudeAgentSDK,
+			Class: "AgentDefinition",
+			Name:  "researcher",
+			ToolRefs: []models.ToolRef{
+				{Name: `"WebSearch"`, External: true},
+				{Name: `"Read"`, External: true},
+			},
+		},
+		models.RepoInventory{},
+		true},
+	{"CSDK-102 silent when no WebSearch in tools", "CSDK-102",
+		models.AgentDef{
+			SDK:   models.SDKClaudeAgentSDK,
+			Class: "AgentDefinition",
+			Name:  "data-analyst",
+			ToolRefs: []models.ToolRef{
+				{Name: `"Bash"`, External: true},
+				{Name: `"Read"`, External: true},
 			},
 		},
 		models.RepoInventory{},
@@ -938,6 +995,49 @@ var policyAgentRuleCases = []policyAgentCase{
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"safety_settings": {Value: &models.Expr{Kind: models.ExprNameRef, Text: "SAFETY_SETTINGS"}},
 			}},
+		},
+		models.RepoInventory{},
+		false},
+
+	// ─── GADK-103 web search built-in without before_tool_callback ───────────
+	{"GADK-103 fires when google_search present and no before_tool_callback", "GADK-103",
+		models.AgentDef{
+			SDK:      models.SDKGoogleADK,
+			Class:    "Agent",
+			Name:     "search_agent",
+			ToolRefs: []models.ToolRef{{Name: "google_search", External: true}},
+		},
+		models.RepoInventory{},
+		true},
+	{"GADK-103 fires when VertexAISearch present and no before_tool_callback", "GADK-103",
+		models.AgentDef{
+			SDK:      models.SDKGoogleADK,
+			Class:    "Agent",
+			Name:     "search_agent",
+			ToolRefs: []models.ToolRef{{Name: "VertexAISearch()", External: true}},
+		},
+		models.RepoInventory{},
+		true},
+	{"GADK-103 silent when before_tool_callback present", "GADK-103",
+		models.AgentDef{
+			SDK:      models.SDKGoogleADK,
+			Class:    "Agent",
+			Name:     "search_agent",
+			ToolRefs: []models.ToolRef{{Name: "google_search", External: true}},
+			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
+				"before_tool_callback": {Value: &models.Expr{Kind: models.ExprNameRef, Text: "validate_query"}},
+			}},
+		},
+		models.RepoInventory{},
+		false},
+	{"GADK-103 silent when no web search tool", "GADK-103",
+		models.AgentDef{
+			SDK:   models.SDKGoogleADK,
+			Class: "Agent",
+			Name:  "data_agent",
+			ToolRefs: []models.ToolRef{
+				{Name: "fetch_data", Resolved: &models.ToolDef{Kind: models.KindGoogleADKTool}},
+			},
 		},
 		models.RepoInventory{},
 		false},

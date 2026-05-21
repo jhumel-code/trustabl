@@ -68,3 +68,39 @@ rules:
     references:
       - "OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/"
       - "OWASP LLM Top 10:2025 LLM05 Improper Output Handling — https://genai.owasp.org/llmrisk/llm052025-improper-output-handling/"
+
+  - id: GADK-103
+    title: Agent uses web search built-in without before_tool_callback
+    scope: agent
+    severity: high
+    confidence: 0.85
+    language: python
+    applies_to:
+      - google_adk_agent
+    match:
+      all:
+        - agent_uses_hosted_tool_class: [google_search, VertexAISearch]
+        - agent_kwarg_missing: [before_tool_callback]
+    explanation: >
+      This agent is wired with a web search built-in tool (google_search or
+      VertexAISearch) but has no before_tool_callback configured. Web search
+      results are untrusted external data that can contain prompt injection
+      payloads. Without a callback intercepting tool calls before execution,
+      there is no gate to validate queries or block attacker-influenced
+      invocations. An injected instruction retrieved from a prior web search
+      can direct the agent to issue further search queries or pass malicious
+      content to downstream tools.
+    fix: >
+      Pass before_tool_callback= to the Agent constructor. The callback
+      receives the tool name and parameters before execution; validate that
+      the search query conforms to expected patterns and return a dict with
+      an "error" key to block suspicious calls. Pair this with
+      safety_settings= to filter harmful model outputs that may result from
+      processing search content.
+    fix_type: config
+    fix_hints:
+      hook: before_tool_callback
+      guard: query_allowlist
+    references:
+      - "OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/"
+      - "OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/"

@@ -572,6 +572,28 @@ func PredAgentGrantsBuiltinTool(names []string, a models.AgentDef) bool {
 	return false
 }
 
+// PredAgentUsesHostedToolClass fires when the agent's tools= list contains a
+// hosted SDK tool whose class name matches any of the given names. Handles three
+// naming styles found across SDKs:
+//   - call expression:    WebSearchTool()  → strips "(…)"  → "WebSearchTool"
+//   - string literal:     "WebSearch"      → strips quotes → "WebSearch"
+//   - name reference:     google_search    → matched as-is
+func PredAgentUsesHostedToolClass(classes []string, a models.AgentDef) bool {
+	for _, ref := range a.ToolRefs {
+		name := ref.Name
+		if idx := strings.Index(name, "("); idx >= 0 {
+			name = name[:idx]
+		}
+		name = strings.Trim(name, `"'`)
+		for _, c := range classes {
+			if name == c {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 func PredAgentHandoffToClass(classes []string, a models.AgentDef) bool {
 	for _, ref := range a.HandoffRefs {
 		if ref.Resolved == nil {

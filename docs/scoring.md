@@ -94,6 +94,7 @@ finding for that tool.
 | CSDK-006 | Mutating tool has no idempotency key               | Medium   | 0.55 |  22.0 |
 | CSDK-007 | Ambiguous tool name                                | Low      | 0.90 |  13.5 |
 | CSDK-101 | Claude subagent is granted the Bash tool           | High     | 0.80 |  56.0 |
+| CSDK-102 | Claude subagent is granted the WebSearch tool      | High     | 0.80 |  56.0 |
 
 ### OpenShell (OSH)
 
@@ -120,6 +121,7 @@ finding for that tool.
 | OAI-103  | tool_choice="required" combined with reset_tool_choice=False | High     | 0.95 |  66.5 |
 | OAI-104  | Raw Agent (not SandboxAgent) wires shell or filesystem-touching tools | Medium   | 0.75 |  30.0 |
 | OAI-105  | Agent has mcp_servers configured AND no input_guardrails | High     | 0.85 |  59.5 |
+| OAI-109  | Agent uses WebSearchTool without input_guardrails  | High     | 0.85 |  59.5 |
 | OAI-201  | Project uses default OpenAI tracing                | Medium   | 0.80 |  32.0 |
 | OAIS-001 | OpenAI tool has no description                     | Low      | 0.95 |  14.3 |
 | OAIS-002 | OpenAI tool parameters are not type-annotated      | Medium   | 0.90 |  36.0 |
@@ -159,11 +161,12 @@ finding for that tool.
 70– 89   █████████  CATL-001 (80.0), CATL-002 (80.0), CATL-006 (75.0)
 40– 69   ████████████████████████████████████████████████
            CSDK-003 (59.5), CSDK-004 (49.0), CSDK-101 (56.0)
-           OSH-002 (59.5), OSH-003 (56.0), OSH-005 (49.0)
-           OSH-006 (63.0), OSH-007 (63.0), OAI-005 (59.5)
-           OAI-006 (49.0), OAI-101 (59.5), OAI-102 (66.5)
-           OAI-103 (66.5), OAI-105 (59.5), MCP-001 (52.5)
-           CATL-003 (52.5), CATL-004 (49.0), CATL-005 (49.0)
+           CSDK-102 (56.0), OSH-002 (59.5), OSH-003 (56.0)
+           OSH-005 (49.0), OSH-006 (63.0), OSH-007 (63.0)
+           OAI-005 (59.5), OAI-006 (49.0), OAI-101 (59.5)
+           OAI-102 (66.5), OAI-103 (66.5), OAI-105 (59.5)
+           OAI-109 (59.5), MCP-001 (52.5), CATL-003 (52.5)
+           CATL-004 (49.0), CATL-005 (49.0)
 10– 39   ████████████████████████████████████████████████
            CSDK-001 (14.3), CSDK-002 (36.0), CSDK-005 (24.0)
            CSDK-006 (22.0), CSDK-007 (13.5), OSH-004 (38.0)

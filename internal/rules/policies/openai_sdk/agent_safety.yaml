@@ -123,3 +123,35 @@ rules:
     fix_type: config
     references:
       - "OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/"
+
+  - id: OAI-109
+    title: Agent uses WebSearchTool without input_guardrails
+    scope: agent
+    severity: high
+    confidence: 0.85
+    language: python
+    applies_to:
+      - openai_agent
+      - openai_sandbox_agent
+    match:
+      all:
+        - agent_uses_hosted_tool_class: [WebSearchTool]
+        - agent_kwarg_list_empty: [input_guardrails]
+    explanation: >
+      This agent is wired with WebSearchTool, which fetches content from the
+      public internet, but has no input_guardrails configured. Web search
+      results are untrusted external data that can contain prompt injection
+      payloads. An attacker can craft malicious content on a page they control;
+      when the agent searches and retrieves that content, the injected
+      instructions can hijack the agent's behavior — exfiltrating data, calling
+      other tools, or manipulating outputs.
+    fix: >
+      Add at least one @input_guardrail that validates user queries before they
+      reach WebSearchTool. The guardrail should reject queries that could lead
+      to attacker-controlled content (e.g. queries containing raw URLs or
+      suspicious redirection patterns). Wire it via input_guardrails=[...] on
+      the Agent(...) constructor.
+    fix_type: config
+    references:
+      - "OWASP LLM Top 10:2025 LLM01 Prompt Injection — https://genai.owasp.org/llmrisk/llm01-prompt-injection/"
+      - "OWASP LLM Top 10:2025 LLM06 Excessive Agency — https://genai.owasp.org/llmrisk/llm062025-excessive-agency/"

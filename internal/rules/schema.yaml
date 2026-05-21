@@ -272,6 +272,17 @@ rules:
 #       whose tools= holds built-in tool names ("Bash", "Write") that resolve
 #       to no in-repo ToolDef.
 #
+#   agent_uses_hosted_tool_class: [WebSearchTool, google_search, ...]
+#       Fires when the agent's tools= list contains a hosted/built-in SDK tool
+#       whose class or name matches any of the given values. Handles three
+#       naming styles found across SDKs:
+#         • Call expression  WebSearchTool()    → strips "(…)"  → "WebSearchTool"
+#         • String literal   "WebSearch"        → strips quotes → "WebSearch"
+#         • Name reference   google_search      → matched as-is
+#       Use this for SDK-provided tool classes that do not resolve to an in-repo
+#       ToolDef (e.g. OpenAI WebSearchTool, Claude built-in "WebSearch",
+#       Google ADK google_search).
+#
 #   agent_handoff_to_class: [Agent, SandboxAgent, ...]
 #       Fires when any of the agent's resolved HandoffRefs has the given class.
 #
