@@ -119,3 +119,14 @@ type MCPServerRef struct {
 	Resolved *MCPServerDef `json:"-"`
 	External bool          `json:"external"`
 }
+
+// SubagentDef is one parsed `.claude/agents/*.md` definition. The tools field
+// is the comma-separated list from frontmatter; both built-in tool names
+// ("Read", "Bash") and MCP-tool names ("mcp__server__tool") appear here.
+type SubagentDef struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Tools       []string `json:"tools,omitempty"`
+	Model       string   `json:"model,omitempty"`
+	FilePath    string   `json:"file_path"`
+}
