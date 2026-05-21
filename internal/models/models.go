@@ -202,6 +202,7 @@ type RepoInventory struct {
 	HostedTools        []HostedToolDef  `json:"hosted_tools"`
 	MCPServers         []MCPServerDef   `json:"mcp_servers"`
 	Subagents          []SubagentDef    `json:"subagents"`
+	ClaudeSettings     []ClaudeSettings `json:"claude_settings"`
 	SDKsDetected       []SDK            `json:"sdks_detected"`
 	Manifest           ScanManifest     `json:"manifest"` // convenience copy for repo-scope predicates
 	UsesDefaultTracing bool             `json:"uses_default_tracing"`

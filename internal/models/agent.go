@@ -130,3 +130,30 @@ type SubagentDef struct {
 	Model       string   `json:"model,omitempty"`
 	FilePath    string   `json:"file_path"`
 }
+
+// PermissionRule is one parsed entry from .claude/settings.json permissions
+// lists. Raw preserves the original string for finding attribution; Tool and
+// Pattern carry the parsed grammar.
+type PermissionRule struct {
+	Tool    string `json:"tool"`              // "Bash" | "Read" | "Edit" | "WebFetch" | "MCP" | "Agent"
+	Pattern string `json:"pattern,omitempty"` // empty for bare "Bash", "npm run *" for "Bash(npm run *)"
+	Raw     string `json:"raw"`
+}
+
+// ClaudePermissions is the parsed permissions block.
+type ClaudePermissions struct {
+	Allow []PermissionRule `json:"allow,omitempty"`
+	Deny  []PermissionRule `json:"deny,omitempty"`
+	Ask   []PermissionRule `json:"ask,omitempty"`
+}
+
+// ClaudeSettings is one parsed .claude/settings.json (or settings.local.json).
+type ClaudeSettings struct {
+	FilePath        string            `json:"file_path"`
+	Permissions     ClaudePermissions `json:"permissions"`
+	DefaultMode     string            `json:"default_mode,omitempty"`
+	AdditionalDirs  []string          `json:"additional_directories,omitempty"`
+	HasEnvBlock     bool              `json:"has_env_block"`
+	HasHooks        bool              `json:"has_hooks"`
+	HasSandboxBlock bool              `json:"has_sandbox_block"`
+}
