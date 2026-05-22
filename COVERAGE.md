@@ -1,11 +1,11 @@
-# Supported SDKs
+# Coverage
 
 Coverage matrix for trustabl's static analysis: which agent SDKs (and which
 languages) we currently scan, analyse, detect, and generate policies for. This
 file is the at-a-glance reference; `ARCHITECTURE.md` has the implementation
 detail.
 
-_Last reviewed: 2026-05-22 (HEAD `1bf5cee`)._
+_Last reviewed: 2026-05-22 (HEAD `5f84f22`)._
 
 ## Coverage matrix
 
