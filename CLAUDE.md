@@ -198,9 +198,10 @@ When facts disagree across documentation:
 5. **`README.md`** is the external-facing intro.
 6. **`COVERAGE.md`** is the at-a-glance SDK/language coverage matrix.
 7. **`.superpowers/specs/`** holds per-feature design docs (forward-
-   looking; may not match current code).
+   looking; may not match current code). Local-only — `.superpowers/` is
+   gitignored, so these won't exist in a fresh clone.
 8. **`.superpowers/plans/`** holds in-flight implementation plans
-   (ephemeral, may be stale).
+   (ephemeral, may be stale). Local-only, same as the specs above.
 
 When updating any of the above, check whether the change requires
 updates to the others — especially `ARCHITECTURE.md` after a wiring
