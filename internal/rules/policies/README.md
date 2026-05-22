@@ -63,6 +63,13 @@ Every accepted field is documented with annotations in
    rule has no test coverage — this is contract, not best practice.
 6. Run `go test ./...` from the repo root.
 
+When the goal is raising rule *quality* rather than adding a rule, see
+**Path to production-grade (known gaps)** in [`CLAUDE.md`](CLAUDE.md) — it
+tracks the predicate and test-harness work (value-aware timeout checks,
+Session/Client alias matching, hosted/decorated shell-tool coverage, and
+source-level fire/silent fixtures) needed to move the pack from "signal to
+investigate" toward an authoritative gate.
+
 ## When you need a primitive that does not exist yet
 
 The schema is closed (the loader uses `KnownFields(true)`). Adding a new

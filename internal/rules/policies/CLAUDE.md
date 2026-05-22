@@ -152,6 +152,38 @@ The examples sweep in
 checks the scanner doesn't crash; it does not assert findings. Don't
 expect rule failures to surface there.
 
+## Path to production-grade (known gaps)
+
+The shipped pack is calibrated as "signal to investigate," not an
+authoritative gate. The highest-leverage work to move it toward
+production-grade, in priority order:
+
+- **(a) Value-aware `timeout` check.** `call_without_kwarg` only tests that
+  the `timeout` keyword is *present* (`astutil.HasKwarg`), so
+  `requests.get(url, timeout=None)` — explicitly disabling the timeout —
+  reads as safe. CSDK-003 and OAI-005 need a predicate that rejects a
+  `None` value, not just an absent kwarg.
+- **(b) Attribute-call / alias matching for Session/Client.** Callee
+  matching is exact-text, so the `requests.Session.get`,
+  `requests.Session.post`, and `aiohttp.ClientSession.*` callee entries can
+  never fire — real code is `s = requests.Session(); s.get(...)`. The most
+  common production HTTP shape (a reused session/client) is invisible to
+  CSDK-003 / OAI-005 until an aliasing pass or attribute-call shape match
+  lands.
+- **(c) Include `HostedToolRefs` + decorated shell tools in the agent
+  shell-tool rules.** `agent_uses_tool_kind: [shell_invocation]` (OAI-101,
+  OAI-104) only matches a *bare, undecorated* function in `tools=`. A
+  `@function_tool` that shells out is `KindOpenAITool`, and the SDK's hosted
+  shell tools (`ShellTool`, `LocalShellTool`, `CodeInterpreterTool`) live in
+  `HostedToolRefs`, which `PredAgentUsesToolKind` never iterates. The rules
+  miss the common shapes their titles promise.
+- **(d) Source-level fire/silent fixtures.** Per-rule cases in
+  `policies_test.go` feed hand-constructed typed inputs, so they prove
+  predicate logic but not discovery → detection end-to-end. Add fixtures
+  that run real `.py` snippets through the full scanner, so a discovery
+  change that stops producing a shape a rule depends on fails a test
+  instead of silently killing the rule.
+
 ## Output discipline for explanation/fix text
 
 These strings are user-facing — they appear in the CLI's scan summary and
