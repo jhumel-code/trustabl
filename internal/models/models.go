@@ -223,4 +223,7 @@ type ScanResult struct {
 	Findings       []Finding        `json:"findings"`
 	Readiness      []ToolReadiness  `json:"readiness"`
 	OverallScore   float64          `json:"overall_score"`
+	RulesSource    string           `json:"rules_source"`     // repo the rule pack came from
+	RulesVersion   string           `json:"rules_version"`    // resolved rules commit SHA
+	RulesFromCache bool             `json:"rules_from_cache"` // true if rules came from cache (network skipped/unreachable)
 }
