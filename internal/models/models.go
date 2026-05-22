@@ -132,17 +132,17 @@ type AgentComponent struct {
 
 // Finding is one detector hit on one tool.
 type Finding struct {
-	RuleID       string             `json:"rule_id"`
-	Category     DetectorCategory   `json:"category"`
-	Severity     Severity           `json:"severity"`
-	ToolName     string             `json:"tool_name"`
-	FilePath     string             `json:"file_path"`
-	Line         int                `json:"line"`
-	Title        string             `json:"title"`
-	Explanation  string             `json:"explanation"` // "show your work" per doc §7
-	SuggestedFix string             `json:"suggested_fix"`
-	Confidence   float64            `json:"confidence"` // 0..1
-	FixHints     map[string]any     `json:"fix_hints,omitempty"`
+	RuleID       string           `json:"rule_id"`
+	Category     DetectorCategory `json:"category"`
+	Severity     Severity         `json:"severity"`
+	ToolName     string           `json:"tool_name"`
+	FilePath     string           `json:"file_path"`
+	Line         int              `json:"line"`
+	Title        string           `json:"title"`
+	Explanation  string           `json:"explanation"` // "show your work" per doc §7
+	SuggestedFix string           `json:"suggested_fix"`
+	Confidence   float64          `json:"confidence"` // 0..1
+	FixHints     map[string]any   `json:"fix_hints,omitempty"`
 }
 
 // ToolReadiness is the per-tool score from the Scoring Engine.
@@ -218,19 +218,18 @@ type GeneratedArtifact struct {
 
 // ScanResult is the top-level output. JSON-serializable for CI.
 type ScanResult struct {
-	ScanID             string              `json:"scan_id"`
-	Repo               string              `json:"repo"`
-	Languages          []Language          `json:"languages"`     // detected by file extension (Phase 1)
-	SDKs               []SDK               `json:"sdks"`          // observed in code (Phase 2a)
-	Manifest           ScanManifest        `json:"manifest"`
-	Tools              []ToolDef           `json:"tools"`
-	Agents             []AgentDef          `json:"agents"`
-	HostedTools        []HostedToolDef     `json:"hosted_tools"`
-	MCPServers         []MCPServerDef      `json:"mcp_servers"`
-	Subagents          []SubagentDef       `json:"subagents"`
-	ClaudeSettings     []ClaudeSettings    `json:"claude_settings"`
-	Findings           []Finding           `json:"findings"`
-	Readiness          []ToolReadiness     `json:"readiness"`
-	OverallScore       float64             `json:"overall_score"`
-	GeneratedArtifacts []GeneratedArtifact `json:"generated_artifacts"`
+	ScanID         string           `json:"scan_id"`
+	Repo           string           `json:"repo"`
+	Languages      []Language       `json:"languages"` // detected by file extension (Phase 1)
+	SDKs           []SDK            `json:"sdks"`      // observed in code (Phase 2a)
+	Manifest       ScanManifest     `json:"manifest"`
+	Tools          []ToolDef        `json:"tools"`
+	Agents         []AgentDef       `json:"agents"`
+	HostedTools    []HostedToolDef  `json:"hosted_tools"`
+	MCPServers     []MCPServerDef   `json:"mcp_servers"`
+	Subagents      []SubagentDef    `json:"subagents"`
+	ClaudeSettings []ClaudeSettings `json:"claude_settings"`
+	Findings       []Finding        `json:"findings"`
+	Readiness      []ToolReadiness  `json:"readiness"`
+	OverallScore   float64          `json:"overall_score"`
 }

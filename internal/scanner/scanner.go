@@ -29,10 +29,15 @@ type Config struct {
 
 // Run executes the full pipeline. The returned ScanResult is what gets
 // JSON-serialized for CI output and what the Renderer prints for humans.
-func Run(cfg Config) (models.ScanResult, error) {
+//
+// Generated artifacts (hooks + OpenShell policy) are returned separately
+// rather than embedded in ScanResult: they are derived from the findings,
+// not part of the analysis record, and callers that only want the JSON
+// report should not pay to serialize file bodies they will not commit.
+func Run(cfg Config) (models.ScanResult, []models.GeneratedArtifact, error) {
 	src, err := ingestion.Resolve(cfg.Target)
 	if err != nil {
-		return models.ScanResult{}, fmt.Errorf("ingest: %w", err)
+		return models.ScanResult{}, nil, fmt.Errorf("ingest: %w", err)
 	}
 	defer src.Cleanup()
 
@@ -44,13 +49,13 @@ func Run(cfg Config) (models.ScanResult, error) {
 	// Phase 1: reconnaissance (cheap, no AST)
 	profile, err := ingestion.Recon(src)
 	if err != nil {
-		return models.ScanResult{}, fmt.Errorf("recon: %w", err)
+		return models.ScanResult{}, nil, fmt.Errorf("recon: %w", err)
 	}
 
 	// Phase 2a: per-language inventory (Python only for now)
 	tools, parsed, err := analysis.DiscoverTools(profile.Manifest)
 	if err != nil {
-		return models.ScanResult{}, fmt.Errorf("discover: %w", err)
+		return models.ScanResult{}, nil, fmt.Errorf("discover: %w", err)
 	}
 	agents := analysis.DiscoverAgents(parsed)
 	guardrails := analysis.DiscoverGuardrails(parsed)
@@ -72,7 +77,7 @@ func Run(cfg Config) (models.ScanResult, error) {
 	// Phase 2b: policy selection
 	registry, err := rules.LoadFor(rules.DefaultFS(), inventory.SDKsDetected)
 	if err != nil {
-		return models.ScanResult{}, fmt.Errorf("load rules: %w", err)
+		return models.ScanResult{}, nil, fmt.Errorf("load rules: %w", err)
 	}
 	if len(cfg.Categories) > 0 {
 		registry = registry.Subset(cfg.Categories...)
@@ -92,22 +97,21 @@ func Run(cfg Config) (models.ScanResult, error) {
 	)
 
 	return models.ScanResult{
-		ScanID:             scanID(repoLabel, profile.Manifest),
-		Repo:               repoLabel,
-		Languages:          profile.Languages,
-		SDKs:               inventory.SDKsDetected,
-		Manifest:           profile.Manifest,
-		Tools:              tools,
-		Agents:             inventory.Agents,
-		HostedTools:        inventory.HostedTools,
-		MCPServers:         inventory.MCPServers,
-		Subagents:          inventory.Subagents,
-		ClaudeSettings:     inventory.ClaudeSettings,
-		Findings:           findings,
-		Readiness:          readiness,
-		OverallScore:       overall,
-		GeneratedArtifacts: artifacts,
-	}, nil
+		ScanID:         scanID(repoLabel, profile.Manifest),
+		Repo:           repoLabel,
+		Languages:      profile.Languages,
+		SDKs:           inventory.SDKsDetected,
+		Manifest:       profile.Manifest,
+		Tools:          tools,
+		Agents:         inventory.Agents,
+		HostedTools:    inventory.HostedTools,
+		MCPServers:     inventory.MCPServers,
+		Subagents:      inventory.Subagents,
+		ClaudeSettings: inventory.ClaudeSettings,
+		Findings:       findings,
+		Readiness:      readiness,
+		OverallScore:   overall,
+	}, artifacts, nil
 }
 
 // deriveSDKsDetected scans the inventory for tool/agent kinds that imply

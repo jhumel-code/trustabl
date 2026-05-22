@@ -15,11 +15,11 @@ func TestScanDeterministic(t *testing.T) {
 	_, thisFile, _, _ := runtime.Caller(0)
 	fixture := filepath.Join(filepath.Dir(thisFile), "..", "..", "testdata", "deterministic-fixture")
 
-	r1, err := scanner.Run(scanner.Config{Target: fixture})
+	r1, arts1, err := scanner.Run(scanner.Config{Target: fixture})
 	if err != nil {
 		t.Fatalf("first run: %v", err)
 	}
-	r2, err := scanner.Run(scanner.Config{Target: fixture})
+	r2, arts2, err := scanner.Run(scanner.Config{Target: fixture})
 	if err != nil {
 		t.Fatalf("second run: %v", err)
 	}
@@ -27,11 +27,11 @@ func TestScanDeterministic(t *testing.T) {
 	if r1.ScanID != r2.ScanID {
 		t.Errorf("ScanID drifted: %q vs %q", r1.ScanID, r2.ScanID)
 	}
-	if len(r1.GeneratedArtifacts) != len(r2.GeneratedArtifacts) {
-		t.Fatalf("artifact count differs: %d vs %d", len(r1.GeneratedArtifacts), len(r2.GeneratedArtifacts))
+	if len(arts1) != len(arts2) {
+		t.Fatalf("artifact count differs: %d vs %d", len(arts1), len(arts2))
 	}
-	for i, a1 := range r1.GeneratedArtifacts {
-		a2 := r2.GeneratedArtifacts[i]
+	for i, a1 := range arts1 {
+		a2 := arts2[i]
 		if a1.RelativePath != a2.RelativePath {
 			t.Errorf("artifact %d path differs: %q vs %q", i, a1.RelativePath, a2.RelativePath)
 			continue

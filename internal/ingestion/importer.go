@@ -81,7 +81,7 @@ func cloneRemote(remoteURL string) (*Source, error) {
 
 	// Shallow clone — we only need source, not history.
 	// Auth note: go-git will pick up SSH agent / GIT_ASKPASS for private repos.
-	// BYOK for GitHub auth is out of scope for the skeleton; document it.
+	// BYOK for GitHub auth is out of scope; document it.
 	_, err = git.PlainClone(tmp, false, &git.CloneOptions{
 		URL:      remoteURL,
 		Depth:    1,

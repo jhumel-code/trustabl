@@ -26,7 +26,7 @@ import (
 	"github.com/trustabl/trustabl/internal/scanner"
 )
 
-var version = "0.1.0-skeleton"
+var version = "0.1.0"
 
 // exitCodeError carries a desired process exit code through the cobra error
 // path so we can avoid calling os.Exit inside runScan (which would skip any
@@ -93,7 +93,7 @@ func newScanCommand() *cobra.Command {
 		},
 	}
 	cmd.Flags().StringVar(&f.detectors, "detectors", "",
-		"comma-separated detector categories: claude_sdk, openshell (default: all)")
+		"comma-separated detector categories: claude_sdk, openai_sdk, openshell (default: all)")
 	cmd.Flags().StringVar(&f.format, "format", "human",
 		"output format: human|json")
 	cmd.Flags().BoolVar(&f.apply, "apply", false,
@@ -121,7 +121,7 @@ func runScan(target string, f scanFlags) error {
 		cfg.Categories = cats
 	}
 
-	result, err := scanner.Run(cfg)
+	result, artifacts, err := scanner.Run(cfg)
 	if err != nil {
 		return err
 	}
@@ -142,7 +142,7 @@ func runScan(target string, f scanFlags) error {
 	// Apply side effects.
 	if f.apply {
 		if !f.yes && !confirm(
-			fmt.Sprintf("Write %d artifact(s) to %s?", len(result.GeneratedArtifacts), target),
+			fmt.Sprintf("Write %d artifact(s) to %s?", len(artifacts), target),
 		) {
 			fmt.Fprintln(os.Stderr, "Apply cancelled.")
 			// Intentional fall-through: --export still runs, and exit code
@@ -154,14 +154,14 @@ func runScan(target string, f scanFlags) error {
 				return fmt.Errorf("--apply requires a local target (remote source is cleaned up)")
 			}
 			if err := review.ApplyArtifacts(result.Manifest.RepoRoot,
-				result.GeneratedArtifacts, f.overwrite); err != nil {
+				artifacts, f.overwrite); err != nil {
 				return fmt.Errorf("apply: %w", err)
 			}
-			fmt.Fprintf(os.Stderr, "Wrote %d artifact(s).\n", len(result.GeneratedArtifacts))
+			fmt.Fprintf(os.Stderr, "Wrote %d artifact(s).\n", len(artifacts))
 		}
 	}
 	if f.export != "" {
-		if err := review.ExportZIP(f.export, result.GeneratedArtifacts); err != nil {
+		if err := review.ExportZIP(f.export, artifacts); err != nil {
 			return fmt.Errorf("export: %w", err)
 		}
 		fmt.Fprintf(os.Stderr, "Wrote bundle to %s\n", f.export)
@@ -200,10 +200,10 @@ func parseCategories(s string) ([]models.DetectorCategory, error) {
 	for _, raw := range strings.Split(s, ",") {
 		c := models.DetectorCategory(strings.TrimSpace(raw))
 		switch c {
-		case models.CategoryClaudeSDK, models.CategoryOpenShell:
+		case models.CategoryClaudeSDK, models.CategoryOpenAISDK, models.CategoryOpenShell:
 			out = append(out, c)
 		default:
-			return nil, fmt.Errorf("unknown detector category %q (allowed: claude_sdk, openshell)", c)
+			return nil, fmt.Errorf("unknown detector category %q (allowed: claude_sdk, openai_sdk, openshell)", c)
 		}
 	}
 	return out, nil

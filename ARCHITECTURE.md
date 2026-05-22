@@ -623,9 +623,17 @@ ScanResult {
     Findings           []Finding
     Readiness          []ToolReadiness
     OverallScore       float64
-    GeneratedArtifacts []GeneratedArtifact
 }
 ```
+
+Generated artifacts (hooks + OpenShell policy) are **not** a field on
+`ScanResult`. `scanner.Run` returns them as a separate
+`[]GeneratedArtifact` value, because they are derived from the findings
+rather than part of the analysis record — and a JSON consumer that only
+wants the report should not pay to serialize file bodies it will not
+commit. The CLI consumes that slice only for `--apply` and `--export`;
+neither output format renders the artifacts inline (the human summary
+lists findings and readiness, not the generated file bodies).
 
 `ScanID` is derived deterministically from the repo label and the sorted
 Python file list, so identical inputs produce diff-comparable JSON across runs.
@@ -934,9 +942,10 @@ Exit codes:
 - `1` — at least one finding ≥ medium, OR `--strict` and any finding present.
 - `2` — scanner / I/O error.
 
-The CLI is a thin shell over `scanner.Run`. The same `Run(Config) (ScanResult,
-error)` is what a future HTTP server, GitHub Action, or test harness calls;
-the boundary is intentionally narrow.
+The CLI is a thin shell over `scanner.Run`. The same
+`Run(Config) (ScanResult, []GeneratedArtifact, error)` is what a future HTTP
+server, GitHub Action, or test harness calls; the boundary is intentionally
+narrow.
 
 ---
 

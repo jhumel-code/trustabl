@@ -190,14 +190,6 @@ func (r *Renderer) Render(result models.ScanResult) string {
 		}
 	}
 
-	// Generated artifacts (so the user knows what would be written).
-	if len(result.GeneratedArtifacts) > 0 {
-		b.WriteString("\n" + styleHeader.Render("Generated artifacts") + "\n")
-		for _, a := range result.GeneratedArtifacts {
-			fmt.Fprintf(&b, "  %s  (%s)\n", a.RelativePath, a.Category)
-			fmt.Fprintf(&b, "    %s\n", styleDim.Render(a.Rationale))
-		}
-	}
 	return b.String()
 }
 
