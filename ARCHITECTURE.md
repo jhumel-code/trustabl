@@ -4,8 +4,8 @@ This document describes the concrete architecture of the trustabl codebase as it
 exists today. It is the implementer's reference: what each package owns, the
 data that crosses package boundaries, and the decisions that shaped the layout.
 
-For the *product* vision (Trustabl Strawman v1), see the design doc tracker —
-this file is scoped to the Go binary in this repository.
+For the broader product vision, see the design doc tracker — this file is
+scoped to the Go binary in this repository.
 
 ---
 
@@ -24,7 +24,7 @@ committable artifacts that close those gaps:
   authoring policy by hand.
 
 Single Go binary, no daemon, no server. Web app and CI surfaces are out of
-scope for this skeleton (see `README.md` § Status).
+scope (see `README.md` § Status).
 
 ---
 
@@ -357,7 +357,7 @@ perfect tool would average to a "moderate" overall score that hides the
 critical exposure.
 
 Both `saturation` and the severity weights in [models.SeverityWeight](internal/models/models.go)
-are placeholders pending a corpus eval (architecture § 8). They live in one
+are initial values pending corpus calibration (architecture § 8). They live in one
 place so the curve can be tuned without touching detectors.
 
 ### Stage 6 — Generation ([internal/generation/](internal/generation/))
@@ -371,7 +371,7 @@ bug.
 
 - **Hooks** ([hooks.go](internal/generation/hooks.go)) — emits
   `hooks/pretooluse_validate.py` (per-tool validators behind a dispatch table)
-  and `hooks/posttooluse_log.py` (structured logging stub). A finding is
+  and `hooks/posttooluse_log.py` (structured logging). A finding is
   hook-eligible if its `FixHints["hook"]` is non-empty, OR if its rule ID is
   one of `CSDK-003` / `CSDK-004` / `CSDK-006` (the rules whose remediation is
   a runtime mutation rather than a code change). `stanzaForFinding` maps each
@@ -696,7 +696,7 @@ internal/
 │       └── (no openshell/ — OSH-001..005 moved to a closed-source project)
 ├── generation/                  Hooks + Policy generators (deterministic).
 ├── review/                      Human renderer, apply, export ZIP.
-└── inference/                   BYOK inference router (stub; cache only).
+└── inference/                   BYOK inference router (interface + cache).
 ```
 
 ### `internal/analysis/heuristics.go` — the shared-helper boundary
@@ -953,16 +953,16 @@ take it absent a concrete distribution requirement.
 
 ## 10. What is intentionally out
 
-- **No LLM enrichment yet.** `internal/inference/router.go` defines the BYOK
+- **LLM enrichment is opt-in.** `internal/inference/router.go` defines the BYOK
   interface and an in-process cache; `Call()` returns `ErrLLMDisabled` when
-  no API key is set. The planned first target is upgrading low-confidence
+  no API key is set. The first planned target is upgrading low-confidence
   rule-based hits to confirmed findings (CSDK-005 raw-exception detection is
   the highest-leverage rule for this).
 - **No corpus-eval benchmark.** Detection quality measured on a 20–40
-  real-agent-repo corpus is the MVP gate. This skeleton ships rule-based
-  detectors with three-layer test coverage (see §6) — that is not the
-  corpus eval, which requires labelled-finding ground truth on real
-  repos.
+  real-agent-repo corpus is the detection-quality target. The shipped
+  rule-based detectors carry three-layer test coverage (see §6) — that is
+  regression coverage, not the corpus eval, which requires labelled-finding
+  ground truth on real repos.
 - **No web app, no API server, no GitHub Action.** CLI-only.
 - **Per-finding interactive accept/edit/reject.** `--apply --yes` is the CLI
   equivalent of accept-all; richer UX waits for a host that can render it.

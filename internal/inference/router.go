@@ -1,9 +1,10 @@
 // Package inference is the BYOK proxy + cache from architecture §2.
 //
-// STATUS: stub. The interface and cache shape are real; no LLM call is made.
-// Wire `anthropic-sdk-go` into Call() when the LLM enrichment pass is ready
-// (CSDK-005 "raw exceptions" is the most useful first target — its rule is
-// pattern-easy but the *fix* prescription benefits from LLM context).
+// The interface and cache are wired; LLM enrichment is opt-in and runs only
+// when an API key is provided. Wire `anthropic-sdk-go` into Call() to enable
+// the enrichment pass (CSDK-005 "raw exceptions" is the most useful first
+// target — its rule is pattern-easy but the *fix* prescription benefits from
+// LLM context).
 package inference
 
 import (
@@ -14,8 +15,7 @@ import (
 	"sync"
 )
 
-// Request is the shape of one inference call. Kept minimal until we have a
-// real call to model.
+// Request is the shape of one inference call.
 type Request struct {
 	// ToolASTHash is the deterministic hash of the tool's source. Architecture
 	// §3 calls this out as the cache key for keeping repeat scans cheap.
@@ -38,12 +38,12 @@ type Router struct {
 }
 
 // New returns a Router. apiKey is the user's Anthropic/OpenAI key per BYOK;
-// pass empty string to operate in stub mode (no calls will be made).
+// pass empty string to disable LLM calls (cache-only operation).
 func New(apiKey string) *Router {
 	return &Router{apiKey: apiKey, cache: newCache()}
 }
 
-// Call runs an inference request. In stub mode it returns ErrLLMDisabled.
+// Call runs an inference request. With no API key it returns ErrLLMDisabled.
 func (r *Router) Call(_ context.Context, req Request) (*Response, error) {
 	if v, ok := r.cache.get(req.ToolASTHash); ok {
 		return &Response{Text: v, FromCache: true}, nil
@@ -60,7 +60,7 @@ func (r *Router) Call(_ context.Context, req Request) (*Response, error) {
 
 // ErrLLMDisabled is returned when no API key was provided. Callers should
 // treat this as a soft skip, not a scan failure.
-var ErrLLMDisabled = errors.New("inference router: no API key provided (running in stub mode)")
+var ErrLLMDisabled = errors.New("inference router: no API key provided (LLM enrichment disabled)")
 
 // ASTHash returns the canonical tool-AST hash for cache lookup.
 func ASTHash(canonicalSource string) string {
@@ -69,7 +69,7 @@ func ASTHash(canonicalSource string) string {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
-// cache: in-memory, process-local. Sufficient for v0.1.
+// cache: in-memory, process-local.
 // Swap for a disk-backed cache once scans cross process boundaries (CI runs).
 // ────────────────────────────────────────────────────────────────────────────
 

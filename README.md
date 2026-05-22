@@ -11,8 +11,7 @@ pack that previously audited it has moved to a closed-source companion
 project. Repos that use OpenShell now produce a META-001 info finding
 flagging it as an unaudited SDK.
 
-Implements the Phase 1 MVP scope of *Trustabl Architecture v1 (Strawman)* as a single
-Go binary.
+Ships as a single Go binary.
 
 ```mermaid
 flowchart LR
@@ -32,7 +31,7 @@ with typed inputs at each stage.
 
 ## Status
 
-Skeleton. Critical path is wired end-to-end. Detection runs from YAML rule
+The scan pipeline runs end-to-end. Detection runs from YAML rule
 files embedded at build time via `go:embed`; see
 [ARCHITECTURE.md](ARCHITECTURE.md) for the engine and `internal/rules/policies/`
 for the rule definitions.
@@ -61,17 +60,18 @@ end-to-end sweep in
 [`internal/scanner/scanner_test.go`](internal/scanner/scanner_test.go) only
 asserts the scanner doesn't crash on real-world inputs.
 
-The following are intentionally stubbed and called out where they live:
+Scope boundaries, by design:
 
-- **LLM enrichment** (`internal/inference/router.go`) — typed BYOK interface, no
-  Anthropic call yet. Rule-based detectors run without it.
-- **Confidence scores** — heuristic, not LLM-judged.
-- **Detection-quality benchmark** — no corpus eval. A 20–40 real-agent-repo
-  corpus with labelled findings is the MVP gate (see
+- **LLM enrichment is opt-in.** `internal/inference/router.go` defines the
+  BYOK interface and cache; rule-based detection runs fully without it.
+- **Confidence scores are heuristic**, not LLM-judged.
+- **Detection-quality benchmark.** A 20–40 real-agent-repo corpus with
+  labelled findings is the detection-quality target (see
   [ARCHITECTURE.md §10](ARCHITECTURE.md#10-what-is-intentionally-out));
   the three-layer test strategy in `internal/rules/` and `internal/scanner/`
   is regression coverage, not detection-quality measurement.
-- **No web app, no API server, no GitHub Action.** This is the CLI surface only.
+- **The CLI is the surface.** No web app, API server, or GitHub Action —
+  pipe `--format json` into your own automation.
 
 ## Build
 
@@ -119,7 +119,7 @@ trustabl scan ./repo --format json
 ```
 
 Exit codes: `0` = no findings ≥ medium, `1` = findings ≥ medium present, `2` =
-scanner error. There is no built-in CI integration in this skeleton — pipe
+scanner error. There is no built-in CI integration — pipe
 `--format json` to your own CI logic, or invoke `trustabl scan ./repo` and act
 on the exit code.
 
@@ -135,7 +135,7 @@ The generated artifacts get committed to the user's repo:
 ├── openshell/
 │   └── policy.yaml
 └── otel/
-    └── trace_config.yaml          # deferred (Phase 2) — not generated
+    └── trace_config.yaml          # planned — not currently generated
 ```
 
 ## Layout
@@ -153,7 +153,7 @@ The generated artifacts get committed to the user's repo:
 | Policy Generator  | `internal/generation/policy.go`          |
 | Diff Renderer     | `internal/review/diff.go`                |
 | Exporter          | `internal/review/export.go`              |
-| Inference Router  | `internal/inference/router.go` (stub)    |
+| Inference Router  | `internal/inference/router.go`           |
 
 ## Supported SDKs and ADKs
 
@@ -279,12 +279,11 @@ field is in place for multi-language rule sets when those parsers ship.
 
 Rule packs are organized per SDK under
 `internal/rules/policies/{claude_sdk,openai_sdk}/<topic>.yaml`,
-embedded at build time via `go:embed`. **The rule catalog is in active
-development** — IDs, severities, predicates, and the rules-shipped set
-itself are not yet stable. They have not been validated against a labelled
-real-agent corpus (see [ARCHITECTURE.md §10](ARCHITECTURE.md#10-what-is-intentionally-out)).
-Treat findings as signal to investigate, not as a fixed contract.
+embedded at build time via `go:embed`. The rule catalog grows as new SDK
+patterns are covered; findings have not yet been calibrated against a
+labelled real-agent corpus (see [ARCHITECTURE.md §10](ARCHITECTURE.md#10-what-is-intentionally-out)),
+so treat them as signal to investigate.
 
-Naming convention (subject to change): `CSDK-NNN` for Claude Agent SDK,
-`OAI-NNN` for OpenAI Agents SDK. (OSH-NNN OpenShell rules previously
-shipped here; that pack moved to a closed-source companion project.)
+Naming convention: `CSDK-NNN` for Claude Agent SDK, `OAI-NNN` for OpenAI
+Agents SDK. (OSH-NNN OpenShell rules previously shipped here; that pack
+moved to a closed-source companion project.)

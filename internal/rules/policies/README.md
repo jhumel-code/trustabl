@@ -140,7 +140,7 @@ anything else.
 | high     | Likely-exploitable or non-recoverable in production.               |
 | medium   | Reliability gap; not a security issue but causes failures.         |
 | low      | Quality / clarity issue; degrades agent-tool selection.            |
-| info     | Reserved; do not ship rules at this level for now.                 |
+| info     | Reserved; do not ship rules at this level.                         |
 
 ## Confidence guidance
 
