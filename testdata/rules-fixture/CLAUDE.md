@@ -1,6 +1,10 @@
 # Instructions for Claude — detection policies
 
-These instructions apply to any work inside `internal/rules/policies/`.
+These instructions apply to any work on the detection rule packs. The packs
+live in the external `trustabl-rules` repository; `testdata/rules-fixture/`
+(this directory) is the Phase-1 interim copy used by the test suite. The `../`
+relative links below refer to the engine's `internal/rules/` package — from
+this fixture location that is `../../internal/rules/`.
 
 ## Required reading order before editing
 

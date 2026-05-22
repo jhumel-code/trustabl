@@ -1,9 +1,17 @@
 # trustabl detection policies
 
 Every `.yaml` file under this directory defines one or more detection rules.
-The contents are embedded into the binary at build time
-(`//go:embed all:policies` in [`../embed.go`](../embed.go)) and loaded at
-scanner startup.
+
+> **Interim location.** These rule packs are **not** embedded in the binary.
+> They live in the external `trustabl-rules` git repository and are resolved
+> at scan time (see `internal/rulesource/`). This `testdata/rules-fixture/`
+> directory is the Phase-1 interim copy used by the test suite, injected via
+> `os.DirFS`; it will move out to `trustabl-rules` in Phase 2. The `../`
+> relative links below refer to the engine's `internal/rules/` package — from
+> this fixture location that is `../../internal/rules/`.
+
+The loader walks this tree at scan time (skipping the top-level
+`manifest.yaml`, which declares the pack's `schema_version`).
 
 ## Layout
 

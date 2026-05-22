@@ -41,8 +41,8 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "trustabl",
 		Short: "Static analyzer for agent reliability",
-		Long: "Trustabl scans Claude Agent SDK repos for reliability weaknesses\n" +
-			"and emits committable hook configs + OpenShell sandbox policies.",
+		Long: "Trustabl scans agent SDK repos (Claude Agent SDK, OpenAI Agents SDK,\n" +
+			"MCP) for reliability and safety weaknesses and reports the findings.",
 		SilenceUsage:  true,
 		SilenceErrors: true, // we handle error printing ourselves below
 	}

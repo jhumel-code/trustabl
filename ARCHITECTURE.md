@@ -21,6 +21,11 @@ discovered inventory — rendered as a human summary or as JSON for CI.
 Single Go binary, no daemon, no server. Web app and CI surfaces are out of
 scope (see `README.md`).
 
+The binary ships with **no embedded rules**. Detection rules live in a
+separate git repository and are resolved at scan time (see §2 — Rule
+resolution). This decouples rule updates from binary releases: rules can be
+added or changed without rebuilding or redistributing the scanner.
+
 ---
 
 ## 1.1 Language scope
@@ -44,16 +49,44 @@ Adding a new tool-discovery language requires:
    `internal/analysis/discovery.go` (e.g. AI SDK's `tool({})` factory in TS).
 3. Per-language predicate implementations in `internal/rules/predicates.go`
    (since AST node types differ across languages).
-4. New rule files under `internal/rules/policies/<category>/` declaring
-   `language: <new>`.
+4. New rule files under `<category>/` in the external `trustabl-rules`
+   repository declaring `language: <new>`.
 
 ---
 
 ## 2. Pipeline
 
+### Rule resolution (pre-pipeline) ([internal/rulesource/](internal/rulesource/))
+
+Before the pipeline runs, `cmd/trustabl` resolves the detection rules. The
+binary embeds none; `rulesource.Resolve` fetches them from the rules git
+repository (`DefaultRepoURL`, overridable with `--rules-repo` /
+`TRUSTABL_RULES_REPO`) via go-git and caches the clone under
+`os.UserCacheDir()/trustabl/rules/<sha>/`, with a `current` pointer file
+naming the active commit.
+
+Resolution order:
+
+1. Unless `--no-rules-update` is set, fetch the configured ref and clone it
+   into the cache if not already present.
+2. If the network is unreachable, fall back to the cached `current` rules and
+   print a warning.
+3. If no usable rules exist locally **and** none can be fetched, exit `2` and
+   advise `trustabl rules pull`. The engine never runs rule-less.
+
+The pack's `manifest.yaml` declares a `schema_version`; resolution rejects a
+pack whose version is incompatible with the engine's
+`rules.SupportedSchemaVersion` (treated as no compatible rules → exit `2`).
+The resolved commit SHA is recorded on `ScanResult` (`RulesSource`,
+`RulesVersion`, `RulesFromCache`) and folded into `ScanID` (see §7).
+`trustabl rules pull` performs the same fetch eagerly without scanning.
+
+### Steps
+
 The scan is a flat sequence of steps. There is no concurrency between steps and
 no state shared across runs. `scanner.Run` ([internal/scanner/scanner.go](internal/scanner/scanner.go))
-calls each step in order; the output of one is the typed input to the next.
+receives the resolved rules as an `fs.FS` on its `Config` and calls each step
+in order; the output of one is the typed input to the next.
 
 ```mermaid
 flowchart TD
@@ -253,7 +286,8 @@ in tree-sitter terms).
 
 Detection is **YAML-driven**. The `internal/analysis/detectors` package owns
 three typed interfaces and the `Registry` runtime; concrete detectors are
-produced by `internal/rules` from embedded YAML policy files.
+produced by `internal/rules` from the YAML policy files resolved out of the
+external rules repository (see §2 — Rule resolution).
 
 ```go
 // ToolDetector fires against one ToolDef at a time.
@@ -287,8 +321,8 @@ Findings are sorted deterministically by `(RuleID, FilePath, Line)`.
 
 Pipeline at startup:
 
-1. `rules.DefaultFS()` returns the `embed.FS`-backed filesystem rooted at
-   `internal/rules/policies/`.
+1. `cmd/trustabl` resolves the rules repository into an `fs.FS` (see §2 —
+   Rule resolution) and hands it to `scanner.Run` via `Config.RulesFS`.
 2. `rules.LoadFor(fsys, inv.SDKsDetected)` walks recursively, decodes every
    `.yaml` file, validates required fields / enums / cross-file rule-ID
    uniqueness, then wraps each `RuleDef` whose category matches an SDK in
@@ -426,7 +460,6 @@ classDiagram
         Confidence
         Explanation
         SuggestedFix
-        FixHints
     }
     class ScanManifest {
         RepoRoot
@@ -589,6 +622,9 @@ ScanResult {
     Findings           []Finding
     Readiness          []ToolReadiness
     OverallScore       float64
+    RulesSource        string              // repo the rule pack came from
+    RulesVersion       string              // resolved rules commit SHA (folded into ScanID)
+    RulesFromCache     bool                // true if rules came from cache (network skipped/unreachable)
 }
 ```
 
@@ -596,8 +632,10 @@ ScanResult {
 record, and both output formats render from it (the human summary lists
 findings and readiness; `--format json` marshals the struct directly).
 
-`ScanID` is derived deterministically from the repo label and the sorted
-Python file list, so identical inputs produce diff-comparable JSON across runs.
+`ScanID` is derived deterministically from the repo label, the sorted
+Python file list, and the resolved rules version, so identical inputs produce
+diff-comparable JSON across runs — and a different rule pack yields a distinct,
+honest ID.
 
 Discipline rules:
 
@@ -637,30 +675,24 @@ internal/
 │       └── detector.go          Detector iface, Registry, New(ds), Subset, Run.
 ├── rules/                       YAML-driven detection engine. Authoritative.
 │   ├── schema.go                PolicyFile / RuleDef / MatchExpr types.
-│   ├── loader.go                Validating YAML loader (recursive walk).
+│   ├── schema_version.go        SupportedSchemaVersion const (engine ↔ pack gate).
+│   ├── loader.go                Validating YAML loader (recursive walk; skips manifest.yaml).
 │   ├── predicates.go            One Pred* per detection primitive.
 │   ├── evaluator.go             MatchExpr.Evaluate — recursive walker.
-│   ├── rule_detector.go         RuleDetector adapter + LoadRegistry.
-│   ├── embed.go                 //go:embed all:policies → DefaultFS().
-│   └── policies/                Embedded YAML rule definitions.
-│       ├── claude_sdk/
-│       │   ├── agent_safety.yaml      CSDK-101 (agent scope)
-│       │   ├── error_handling.yaml    CSDK-005
-│       │   ├── idempotency.yaml       CSDK-006
-│       │   ├── network.yaml           CSDK-003
-│       │   ├── path_safety.yaml       CSDK-004
-│       │   └── tool_definition.yaml   CSDK-001, CSDK-002, CSDK-007
-│       ├── openai_sdk/
-│       │   ├── tool_definition.yaml   OAI-001, OAI-002
-│       │   ├── decorator_config.yaml  OAI-003, OAI-004
-│       │   ├── network.yaml           OAI-005
-│       │   ├── path_safety.yaml       OAI-006
-│       │   ├── agent_safety.yaml      OAI-101, OAI-102, OAI-103, OAI-104
-│       │   ├── mcp_safety.yaml        OAI-105
-│       │   └── tracing.yaml           OAI-201
-│       └── (no openshell/ — OSH-001..005 moved to a closed-source project)
+│   └── rule_detector.go         RuleDetector adapter + LoadRegistry.
+│                                (No embed.go: rules are not embedded — see rulesource.)
+├── rulesource/                  External-rules resolution.
+│   ├── git.go                   resolveRef / cloneInto via go-git.
+│   ├── cache.go                 Cache layout + current-pointer helpers.
+│   ├── manifest.go              manifest.yaml read + schema-compatibility gate.
+│   └── rulesource.go            Resolve / Pull; Config; Resolved; DefaultRepoURL.
 ├── review/                      Human renderer (read-only; no file writes).
 └── inference/                   BYOK inference router (interface + cache).
+
+The YAML rule packs themselves live in the **separate** `trustabl-rules`
+repository, not in this tree. For tests, an interim copy lives under
+`testdata/rules-fixture/` (with a `manifest.yaml` declaring `schema_version`)
+and is injected via `os.DirFS`.
 ```
 
 ### `internal/analysis/heuristics.go` — the shared-helper boundary
@@ -681,11 +713,12 @@ has no domain knowledge.
 
 ---
 
-## 5. The rules engine: schema, evaluator, embed
+## 5. The rules engine: schema, evaluator, loader
 
-YAML rule files live under `internal/rules/policies/`, grouped first by
-detector category and then by topic. Each file is a single `policy:` block
-with one or more rules:
+YAML rule files live in the external `trustabl-rules` repository (and, for
+tests, the interim `testdata/rules-fixture/` copy), grouped first by detector
+category and then by topic. Each file is a single `policy:` block with one or
+more rules:
 
 ```yaml
 policy:
@@ -712,10 +745,11 @@ rules:
 
 ### Adding a rule
 
-1. Pick the right category subdirectory (`claude_sdk/` or `openai_sdk/`).
+1. Pick the right category subdirectory (`claude_sdk/` or `openai_sdk/`) in
+   the rules repository.
 2. Either append to an existing topic file or create a new `<topic>.yaml`
-   file — the loader walks recursively so new files are picked up
-   automatically by `go:embed`.
+   file — the loader walks the rules FS recursively, so new files are picked
+   up automatically with no engine change.
 3. Use a fresh rule ID that does not collide with any existing ID across all
    policy files (the loader rejects duplicates).
 4. If your rule needs a primitive the schema does not yet expose, extend
@@ -775,15 +809,14 @@ negation.
   duplicate-rule-ID detection across files. Every error is collected via
   `errors.Join` so a contributor sees every problem in one run.
 
-### Embedding ([embed.go](internal/rules/embed.go))
+### Rule source ([internal/rulesource/](internal/rulesource/))
 
-`//go:embed all:policies` bundles the YAML files into the binary at compile
-time. `DefaultFS()` returns an `fs.FS` rooted at the policies directory (the
-`policies/` prefix is stripped via `fs.Sub`), so the loader sees paths like
-`claude_sdk/network.yaml`.
-
-This is what `scanner.Run` uses by default. Tests can pass an `fstest.MapFS`
-or any other `fs.FS` to `LoadRegistry` to exercise alternate rule sets.
+The engine embeds no rules. `cmd/trustabl` resolves the `trustabl-rules`
+repository into an `fs.FS` (see §2 — Rule resolution) and passes it to
+`scanner.Run` via `Config.RulesFS`; the loader walks that FS, skipping the
+top-level `manifest.yaml`. Tests inject `testdata/rules-fixture/` via
+`os.DirFS`, and any `fs.FS` (e.g. an `fstest.MapFS`) can be handed to
+`LoadRegistry` to exercise alternate rule sets.
 
 ### Detector interface boundary ([detectors/detector.go](internal/analysis/detectors/detector.go))
 
@@ -801,22 +834,22 @@ runtime agnostic to where a rule comes from.
 
 ### Rule lifecycle
 
-From YAML source on disk to a `Finding` emitted at scan time:
+From YAML source in the rules repository to a `Finding` emitted at scan time:
 
 ```mermaid
 flowchart LR
-    yaml["policies/&lt;sdk&gt;/&lt;topic&gt;.yaml"]
-    embed["//go:embed all:policies"]
-    fs[("DefaultFS()<br/>(embed.FS rooted at policies/)")]
+    yaml["trustabl-rules<br/>&lt;sdk&gt;/&lt;topic&gt;.yaml"]
+    resolve["rulesource.Resolve<br/>· go-git clone/fetch<br/>· cache fallback<br/>· schema_version gate"]
+    fs[("Config.RulesFS<br/>(fs.FS)")]
     loader["rules.Load<br/>· KnownFields(true)<br/>· required-field validation<br/>· severity/category/scope enums<br/>· applies_to-vs-scope check<br/>· cross-file ID uniqueness"]
     rules[("[]PolicyFile")]
     loadfor["rules.LoadFor(SDKsDetected)<br/>filters by inventory"]
     wrap["wrap each RuleDef as<br/>ToolRuleDetector / AgentRuleDetector / RepoRuleDetector"]
     registry[("detectors.Registry")]
     evaluate["MatchExpr.Evaluate<br/>(recursive conjunctive walker)"]
-    finding[("Finding<br/>RuleID · Severity · Confidence<br/>Explanation · SuggestedFix · FixHints")]
+    finding[("Finding<br/>RuleID · Severity · Confidence<br/>Explanation · SuggestedFix")]
 
-    yaml --> embed --> fs --> loader --> rules --> loadfor --> wrap --> registry
+    yaml --> resolve --> fs --> loader --> rules --> loadfor --> wrap --> registry
     registry -- "Run(profile, inv, parsed)" --> evaluate --> finding
 ```
 
@@ -833,7 +866,8 @@ Coverage is split across three layers, each with a focused contract:
    verified in isolation.
 2. **Per-rule fire/silent tests** ([policies_test.go](internal/rules/policies_test.go)).
    A table of `policyRuleCases` drives one fire and one silent case per
-   shipped rule, loading the actual YAML via `rules.Load(rules.DefaultFS())`.
+   shipped rule, loading the actual YAML from `testdata/rules-fixture/` via
+   `os.DirFS`.
    `TestPolicyRules_AllRulesCovered` fails if any shipped rule lacks an
    entry — adding a rule without test cases is therefore a build failure.
 3. **End-to-end sweep** ([scanner_test.go](internal/scanner/scanner_test.go)).
@@ -856,8 +890,11 @@ not expected to trigger every rule. Per-rule correctness lives in
 
 Two invariants are load-bearing for the user-facing experience:
 
-1. **Same inputs → same `ScanID`.** Derived from a sorted file list, so file
-   ordering from the OS walk does not leak into the ID.
+1. **Same inputs → same `ScanID`.** Derived from the repo label, a sorted
+   file list, and the resolved rules version, so file ordering from the OS
+   walk does not leak into the ID. Because the rules version is folded in, a
+   scan run against a different rule pack produces a distinct ID — the ID is
+   honest about which rules were applied, not just which code was scanned.
 2. **Same inputs → byte-stable report.** Findings are sorted by
    `(RuleID, FilePath, Line)`; the inventory slices (`HostedTools`,
    `MCPServers`, `Subagents`, `ClaudeSettings`) and `Components` (by
@@ -884,14 +921,22 @@ timestamp, no map iteration order, no goroutine scheduling may influence output.
 ```
 trustabl scan <target> [--detectors=…] [--format=human|json]
                        [--strict] [--no-color]
+                       [--rules-repo=URL] [--rules-ref=REF] [--no-rules-update]
+trustabl rules pull    [--rules-repo=URL] [--rules-ref=REF]
 trustabl version
 ```
+
+`--rules-repo` (env `TRUSTABL_RULES_REPO`) overrides the rules repository URL;
+`--rules-ref` selects a branch or tag; `--no-rules-update` skips the network
+fetch and uses the local cache only. `trustabl rules pull` downloads the rule
+packs into the cache without scanning. See §2 — Rule resolution.
 
 Exit codes:
 
 - `0` — no findings ≥ medium (or no findings at all).
 - `1` — at least one finding ≥ medium, OR `--strict` and any finding present.
-- `2` — scanner / I/O error.
+- `2` — scanner / I/O error, OR no usable rules found and none fetchable
+  (run `trustabl rules pull`).
 
 The CLI is a thin shell over `scanner.Run`. The same
 `Run(Config) (ScanResult, error)` is what a future HTTP server, GitHub Action,

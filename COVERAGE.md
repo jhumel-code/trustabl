@@ -4,7 +4,14 @@ Coverage matrix for Trustabl's static analysis: which agent SDKs (and which
 languages) we currently scan, analyse, and detect against. This file is the
 at-a-glance reference; `ARCHITECTURE.md` has the implementation detail.
 
-_Last reviewed: 2026-05-22 (HEAD `b2abf8b`)._
+_Last reviewed: 2026-05-23 (HEAD `e1f5ecd`)._
+
+> **Note:** Detection rules are not shipped in the binary. They live in the
+> separate `trustabl-rules` git repository and are resolved at scan time
+> (cached locally, with offline fallback). The rule IDs and packs listed below
+> describe the rules Trustabl currently ships in that repository; the SDK and
+> language *recognition* surface (scanning + AST discovery) is what the engine
+> binary provides.
 
 ## Coverage matrix
 

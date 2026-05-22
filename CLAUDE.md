@@ -2,8 +2,10 @@
 
 This file captures durable architectural commitments that span the whole
 codebase. Per-area conventions live in nested CLAUDE.md files (see
-[`internal/rules/policies/CLAUDE.md`](internal/rules/policies/CLAUDE.md)
-for rule authoring).
+[`testdata/rules-fixture/CLAUDE.md`](testdata/rules-fixture/CLAUDE.md)
+for rule authoring — the rule packs themselves live in the external
+`trustabl-rules` repository; `testdata/rules-fixture/` is the Phase-1
+interim copy used by tests).
 
 For the current implementation, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 This file is for principles; ARCHITECTURE.md is for facts.
@@ -62,6 +64,17 @@ AST-driven steps that follow is load-bearing: recon stays cheap so it can
 gate whether the expensive AST work runs at all, and the inventory those
 steps build is what makes policy selection data-driven rather than
 statically configured.
+
+Before the pipeline runs, the CLI resolves detection rules from the
+external `trustabl-rules` git repository (the engine embeds none — see
+`internal/rulesource/`) and hands them to `scanner.Run` as an `fs.FS`. The
+resolution path fetches the configured ref, caches the clone under
+`os.UserCacheDir()/trustabl/rules/<sha>/`, falls back to the cache when the
+network is unreachable, and gates the pack's `manifest.yaml`
+`schema_version` against the engine's `rules.SupportedSchemaVersion`. No
+usable rules (none cached and none fetchable, or none compatible) is a
+hard exit 2 — the engine never runs rule-less. The resolved rules SHA is
+recorded on `ScanResult` and folded into `ScanID`.
 
 ### Step 1 — Recon (cheap, no AST)
 
@@ -148,8 +161,8 @@ location: tool file/line, agent constructor call site, or the manifest.
   isolation.
 - **Future SDKs slot in cleanly.** Adding a new SDK means: extend the
   recon dep-scan needles, extend the inventory-step discovery patterns for
-  that SDK's tool/agent shapes, add a policy pack under
-  `internal/rules/policies/<sdk>/`. No engine changes.
+  that SDK's tool/agent shapes, add a policy pack under `<sdk>/` in the
+  external `trustabl-rules` repository. No engine changes, no rebuild.
 
 ## Agent as the unit of analysis (not the repo)
 
@@ -242,14 +255,16 @@ downstream doc that now disagrees, in the same commit.
 
 For rule-authoring hard rules (rule IDs, severity, `applies_to`, schema
 extension, test coverage), see
-[`internal/rules/policies/CLAUDE.md`](internal/rules/policies/CLAUDE.md).
+[`testdata/rules-fixture/CLAUDE.md`](testdata/rules-fixture/CLAUDE.md).
 That file is the source of truth for the rule-authoring contract; do not
 duplicate its rules here.
 
 Repo-wide hard rules that span the whole codebase:
 
 - **Determinism is a contract.** Same inputs → same `ScanID`, and a
-  byte-stable report. Any ordered output (findings, inventory slices,
+  byte-stable report. `ScanID` folds the resolved rules version, so the ID
+  is honest about which rule pack produced the scan — a different pack
+  yields a distinct ID. Any ordered output (findings, inventory slices,
   components) MUST be sorted and deduped deterministically before
   emitting — no timestamps, map iteration order, or scheduling may leak in.
 - **Never commit secrets, credentials, or example repos under

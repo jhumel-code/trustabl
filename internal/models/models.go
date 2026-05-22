@@ -1,6 +1,6 @@
 // Package models holds the typed values that cross module boundaries.
 //
-// Discipline: anything passed from ingestion → analysis → generation → review
+// Discipline: anything passed from ingestion → analysis → review
 // lives here, not as ad-hoc maps. JSON tags are present because ScanResult is
 // emitted for CI piping (--format json).
 package models

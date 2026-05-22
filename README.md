@@ -61,6 +61,16 @@ next, with no shared state between runs — and the inventory the early steps
 build is what makes policy selection *data-driven* rather than statically
 configured.
 
+The binary ships with **no embedded rules**. Before the pipeline runs, Trustabl
+resolves its detection rules from a separate git repository — fetching the
+latest, caching the clone locally, and falling back to the cache when the
+network is unreachable. This decouples rule updates from binary releases: rules
+can be added or changed without rebuilding the scanner. The resolved rules
+commit is recorded in the result and folded into the `ScanID`, so a scan is
+honest about *which* rules produced it. If no rules can be fetched and none are
+cached, the scan exits `2` and tells you to run `trustabl rules pull` — Trustabl
+never runs rule-less.
+
 ```mermaid
 flowchart LR
     target[("Agent repo<br/>(local path or GitHub URL)")]
@@ -142,8 +152,9 @@ in the scanned repo. Each run produces a `ScanResult` containing:
 Output is rendered as a human-readable summary (`--format human`, the default)
 or as JSON (`--format json`) for piping into your own automation. Exit codes:
 `0` = no findings ≥ medium, `1` = findings ≥ medium present (or any finding
-under `--strict`), `2` = scanner error. There is no built-in CI integration —
-pipe `--format json` to your own logic, or act on the exit code.
+under `--strict`), `2` = scanner error (including no usable rules — run
+`trustabl rules pull`). There is no built-in CI integration — pipe
+`--format json` to your own logic, or act on the exit code.
 
 OpenShell surfaces are still discovered (shell-invocation functions,
 `openshell/*.yaml` policies), but the OSH-* detection rules that audited them
@@ -188,7 +199,23 @@ trustabl scan ./repo --format json
 
 # Exit 1 on any finding regardless of severity
 trustabl scan ./repo --strict
+
+# Download / refresh the detection rule packs into the local cache
+trustabl rules pull
+
+# Use a custom rules repo or a specific ref (env: TRUSTABL_RULES_REPO)
+trustabl scan ./repo --rules-repo https://github.com/org/my-rules
+trustabl scan ./repo --rules-ref v1.2.0
+
+# Air-gapped / offline: skip the network fetch, use the cached rules only
+trustabl scan ./repo --no-rules-update
 ```
+
+Rules are cached under your OS cache dir (`os.UserCacheDir()`, e.g.
+`%LocalAppData%\trustabl\rules\` on Windows, `~/.cache/trustabl/rules/` on
+Linux). The first scan (or an explicit `trustabl rules pull`) populates it;
+each subsequent scan checks for an update first (unless `--no-rules-update`),
+falling back to the cached rules if the fetch fails.
 
 ## Where the code lives
 
@@ -198,15 +225,17 @@ trustabl scan ./repo --strict
 | Normalizer (recon) | `internal/ingestion/normalizer.go`       |
 | Tool discovery     | `internal/analysis/discovery.go`         |
 | Detector runtime   | `internal/analysis/detectors/`           |
-| Detector rules     | `internal/rules/policies/<category>/`    |
-| Rule engine        | `internal/rules/{schema,loader,evaluator,predicates,rule_detector,embed}.go` |
+| Rule source        | `internal/rulesource/` (git fetch + cache + schema gate) |
+| Detector rules     | external `trustabl-rules` repo (tests: `testdata/rules-fixture/`) |
+| Rule engine        | `internal/rules/{schema,loader,evaluator,predicates,rule_detector}.go` |
 | Scoring engine     | `internal/analysis/scoring.go`           |
 | Report renderer    | `internal/review/diff.go`                |
 | Inference router   | `internal/inference/router.go`           |
 
-Rule packs live under `internal/rules/policies/{claude_sdk,openai_sdk}/`,
-embedded at build time via `go:embed`. Naming convention: `CSDK-NNN` for Claude
-Agent SDK rules, `OAI-NNN` for OpenAI Agents SDK rules. See
+Rule packs live in the separate `trustabl-rules` git repository (grouped
+`{claude_sdk,openai_sdk}/`), resolved at scan time rather than embedded in the
+binary. Naming convention: `CSDK-NNN` for Claude Agent SDK rules, `OAI-NNN` for
+OpenAI Agents SDK rules. See
 [ARCHITECTURE.md § 2 — steps 3–4](ARCHITECTURE.md#2-pipeline) for the shipped
 rule table and [COVERAGE.md](COVERAGE.md) for per-SDK recognition detail.
 

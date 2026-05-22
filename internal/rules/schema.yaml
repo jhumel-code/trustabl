@@ -1,13 +1,15 @@
 # trustabl rule schema — annotated reference
 #
 # This file documents every field accepted by the YAML rules engine. It is
-# DOCUMENTATION, not a runtime policy: it lives outside policies/ so the
-# embed directive (//go:embed all:policies) and the loader never see it.
+# DOCUMENTATION, not a runtime policy: it lives in the engine repo alongside
+# the loader, not in the rules repository, so the loader never reads it as a
+# rule.
 #
 # To author a new rule:
 #   1. Read this file end-to-end.
 #   2. Copy fields from the annotated example below into a new entry under
-#      internal/rules/policies/<category>/<topic>.yaml.
+#      <category>/<topic>.yaml in the external trustabl-rules repository
+#      (Phase-1 interim copy: testdata/rules-fixture/<category>/<topic>.yaml).
 #   3. Use the predicate reference (bottom of this file) to express your
 #      match condition.
 #
