@@ -10,6 +10,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"io/fs"
 	"sort"
 	"strings"
 
@@ -19,10 +20,20 @@ import (
 	"github.com/trustabl/trustabl/internal/rules"
 )
 
-// Config configures one scan. Zero-value is "scan everything, generate everything".
+// Config configures one scan.
 type Config struct {
 	Target     string                    // local path or GitHub URL
 	Categories []models.DetectorCategory // empty means all categories
+
+	// RulesFS is the filesystem the rule packs are loaded from, resolved by
+	// the caller (cmd/trustabl) via the rulesource package. When nil, Run
+	// falls back to the embedded rules — a transitional behavior removed when
+	// the embedded rules are deleted.
+	RulesFS fs.FS
+	// Rules provenance, recorded into ScanResult and folded into ScanID.
+	RulesSource    string
+	RulesVersion   string
+	RulesFromCache bool
 }
 
 // Run executes the full pipeline. The returned ScanResult is what gets
@@ -68,7 +79,13 @@ func Run(cfg Config) (models.ScanResult, error) {
 	inventory.ClaudeSettings = analysis.DiscoverClaudeSettings(profile.Manifest)
 
 	// Step 3: policy selection
-	registry, err := rules.LoadFor(rules.DefaultFS(), inventory.SDKsDetected)
+	// Transitional: when no rules FS is injected, fall back to the embedded
+	// rules. Task 9 removes this fallback (and DefaultFS) entirely.
+	rulesFS := cfg.RulesFS
+	if rulesFS == nil {
+		rulesFS = rules.DefaultFS()
+	}
+	registry, err := rules.LoadFor(rulesFS, inventory.SDKsDetected)
 	if err != nil {
 		return models.ScanResult{}, fmt.Errorf("load rules: %w", err)
 	}
@@ -87,7 +104,7 @@ func Run(cfg Config) (models.ScanResult, error) {
 	readiness, overall := analysis.Score(tools, findings)
 
 	return models.ScanResult{
-		ScanID:         scanID(repoLabel, profile.Manifest),
+		ScanID:         scanID(repoLabel, profile.Manifest, cfg.RulesVersion),
 		Repo:           repoLabel,
 		Languages:      profile.Languages,
 		SDKs:           inventory.SDKsDetected,
@@ -101,6 +118,9 @@ func Run(cfg Config) (models.ScanResult, error) {
 		Findings:       findings,
 		Readiness:      readiness,
 		OverallScore:   overall,
+		RulesSource:    cfg.RulesSource,
+		RulesVersion:   cfg.RulesVersion,
+		RulesFromCache: cfg.RulesFromCache,
 	}, nil
 }
 
@@ -144,15 +164,16 @@ func computeUsesDefaultTracing(parsed []analysis.ParsedFile) bool {
 	return true
 }
 
-// scanID is derived from the repo label and the sorted set of Python files so
-// that the same input always produces the same ID. This keeps JSON output
-// diff-comparable across identical runs in CI.
-func scanID(repoLabel string, manifest models.ScanManifest) string {
+// scanID is derived from the repo label, the sorted set of Python files, and
+// the rules version, so the same inputs always produce the same ID. Including
+// the rules version means a different rule pack yields a distinct, honest ID.
+func scanID(repoLabel string, manifest models.ScanManifest, rulesVersion string) string {
 	files := make([]string, len(manifest.PythonFiles))
 	copy(files, manifest.PythonFiles)
 	sort.Strings(files)
 	h := sha256.New()
 	h.Write([]byte(repoLabel))
 	h.Write([]byte(strings.Join(files, "\n")))
+	h.Write([]byte(rulesVersion))
 	return "scan_" + hex.EncodeToString(h.Sum(nil)[:8])
 }
