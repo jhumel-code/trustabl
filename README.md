@@ -1,11 +1,34 @@
 # trustabl
 
-Static analyzer for agent reliability. Scans a Claude Agent SDK repo, finds reliability
-weaknesses, emits committable artifacts (Pre/PostToolUse hook configs +
-NVIDIA OpenShell sandbox policies).
+Static analyzer for agent reliability. Scans an agent SDK repo (Claude Agent
+SDK, OpenAI Agents SDK, MCP), finds reliability and safety weaknesses, emits
+committable artifacts (Pre/PostToolUse hook configs + a defaults-only
+OpenShell sandbox-policy starter).
+
+OpenShell-related code is still discovered (shell-invocation surfaces,
+`openshell/*.yaml` sandbox policies, `openshell` deps), but the OSH-* rule
+pack that previously audited it has moved to a closed-source companion
+project. Repos that use OpenShell now produce a META-001 info finding
+flagging it as an unaudited SDK.
 
 Implements the Phase 1 MVP scope of *Trustabl Architecture v1 (Strawman)* as a single
 Go binary.
+
+```mermaid
+flowchart LR
+    target[("Agent repo<br/>(local path or GitHub URL)")]
+    recon["Recon<br/>files · SDK deps"]
+    inv["Inventory<br/>Python AST:<br/>tools · agents ·<br/>guardrails · sessions"]
+    pol["Policy selection<br/>load rules per<br/>detected SDK ·<br/>META findings"]
+    ana["Analysis<br/>tool · agent · repo<br/>detectors"]
+    score["Scoring + Review<br/>per-tool score ·<br/>generate hooks +<br/>OpenShell policy"]
+    out[("ScanResult<br/>findings · scores ·<br/>artifacts")]
+
+    target --> recon --> inv --> pol --> ana --> score --> out
+```
+
+See [ARCHITECTURE.md § 2](ARCHITECTURE.md#2-pipeline) for the full diagram
+with typed inputs at each stage.
 
 ## Status
 
@@ -22,15 +45,12 @@ extracted from them. The rule schema's `language:` field is in place for
 multi-language rule sets when those parsers ship. See
 [ARCHITECTURE.md § 1.1](ARCHITECTURE.md#11-language-scope).
 
-**SDK coverage.** Tool-decorator discovery recognizes Claude Agent SDK
-(`@tool`, `@claude_tool`, `claude_agent_sdk`), OpenAI Agents SDK
-(`@function_tool`), and MCP server registrations (`@server.tool`,
-`@mcp.tool`, `.register_tool`). Shipped detection rules live in
-`internal/rules/policies/claude_sdk/` (CSDK-001–007 tool, CSDK-101 agent),
-`openai_sdk/` (OAI-001–201), and `openshell/` (OSH-001–005); each pack's `explanation`
-and `fix` text is scoped to the SDK it targets. Each SDK's agents are
-discovered separately (`kind: openai_agent` vs `claude_agent_definition`)
-and checked only against the rules for that SDK — no cross-SDK casting.
+**SDK coverage.** See [Supported SDKs](#supported-sdks-and-adks) below for
+the recognized agent SDKs, the decorators and constructor shapes discovery
+extracts from each, and the current status of their rule packs. Each SDK's
+agents are discovered separately (`kind: openai_agent` vs
+`claude_agent_definition`) and checked only against the rules for that SDK
+— no cross-SDK casting.
 
 **Test contract.** The `examples/` directory holds real-world agent code
 (Claude SDK demos, OpenAI Agents SDK demos, etc.). It is a corpus, not a
@@ -81,8 +101,11 @@ trustabl scan https://github.com/org/repo
 
 # Restrict detectors
 trustabl scan ./repo --detectors claude_sdk
-trustabl scan ./repo --detectors openshell
-trustabl scan ./repo --detectors claude_sdk,openshell
+trustabl scan ./repo --detectors openai_sdk
+trustabl scan ./repo --detectors claude_sdk,openai_sdk
+
+# --detectors openshell is still accepted but selects zero rules
+# (the OSH-* pack moved to a closed-source companion project).
 
 # Apply generated artifacts (writes hooks/ and openshell/ into the repo;
 # requires --yes or interactive approval)
@@ -132,66 +155,136 @@ The generated artifacts get committed to the user's repo:
 | Exporter          | `internal/review/export.go`              |
 | Inference Router  | `internal/inference/router.go` (stub)    |
 
-## Detectors shipped
+## Supported SDKs and ADKs
 
-Naming: `CSDK-NNN` for Claude Agent SDK reliability, `OAI-NNN` for OpenAI
-Agents SDK, `OSH-NNN` for OpenShell policy. Rules are defined as YAML in
-`internal/rules/policies/<category>/<topic>.yaml` and embedded into the binary
-via `go:embed`. To add a rule, drop a new YAML entry; no Go code change is
-required unless the rule needs a new predicate primitive (see
-[ARCHITECTURE.md § 5](ARCHITECTURE.md#5-the-rules-engine-schema-evaluator-embed)).
+trustabl recognizes the following agent SDKs / agent development kits by
+parsing real code (Python AST via tree-sitter). The shapes listed under
+"What discovery extracts" are stable — they describe what the scanner can
+*see*. The detection rules that fire against those shapes are a separate,
+evolving layer (see [Detection rules](#detection-rules) below).
 
-**Claude Agent SDK (tool scope)**
+### Claude Agent SDK (Python)
 
-| Rule     | Title                                              | Severity |
-| -------- | -------------------------------------------------- | -------- |
-| CSDK-001 | Tool function has no docstring / description       | low      |
-| CSDK-002 | Tool function has no type-annotated params         | medium   |
-| CSDK-003 | Tool performs network I/O without timeout          | high     |
-| CSDK-004 | Tool accepts user-supplied path without validation | high     |
-| CSDK-005 | Tool raises raw exceptions (no error contract)     | medium   |
-| CSDK-006 | Tool with side-effects has no idempotency hint     | medium   |
-| CSDK-007 | Ambiguous tool name (`process`, `handle`, ...)     | low      |
+- **Tool decorators recognized**: `@tool`, `@claude_tool`, `@agent.tool`,
+  any decorator containing the string `claude_agent_sdk`.
+- **Agent shapes recognized**: `AgentDefinition(...)` constructor calls,
+  with every kwarg captured into a typed `KwargTree`. Typed accessors
+  (`ClaudeBuiltinTools`, `ClaudeDisallowedTools`, `ClaudePermissionMode`,
+  `ClaudeMCPServers`) expose the safety-relevant fields — `tools`,
+  `disallowedTools`, `permissionMode`, `mcpServers` — without future
+  detector code reaching into the raw tree.
+- **Subagents** declared under `.claude/agents/*.md` are parsed into typed
+  `SubagentDef` records: YAML frontmatter is decoded for `name`,
+  `description`, `model`, and `tools`. Both the comma-string form
+  (`tools: Read, Bash`) and the YAML-list form (`tools:\n  - Read`) are
+  accepted.
+- **`.claude/settings.json`** (and `settings.local.json`) is parsed into
+  typed `ClaudeSettings`. The `permissions` block's `allow`/`deny`/`ask`
+  lists are decomposed via `ParsePermissionRule` into typed
+  `PermissionRule{Tool, Pattern, Raw}` records, using the grammar
+  `<Tool>` | `<Tool>(<pattern>)` plus the literal MCP-tool form
+  `mcp__<server>__<tool>`. `defaultMode`, `additionalDirectories`, and
+  presence flags for `env`/`hooks`/`sandbox` blocks are also surfaced
+  (with `"key": null` correctly distinguished from key-absent).
 
-**Claude Agent SDK (agent scope)**
+### OpenAI Agents SDK (Python)
 
-| Rule     | Title                                                  | Severity |
-| -------- | ------------------------------------------------------ | -------- |
-| CSDK-101 | `AgentDefinition` subagent granted the built-in `Bash` tool | high |
+- **Tool decorator recognized**: `@function_tool` (with decorator kwargs
+  `strict_mode`, `failure_error_function`, etc. captured into
+  `ToolDef.Config`).
+- **Agent shapes recognized**: `Agent(...)` and `SandboxAgent(...)`
+  constructor calls. All kwargs captured into a typed `KwargTree`:
+  `instructions`, `model`, `model_settings`, `tools`, `handoffs`,
+  `input_guardrails`, `output_guardrails`, `tool_use_behavior`,
+  `mcp_servers`, etc.
+- **Hosted tools recognized inside `tools=[...]`** — a closed set of 11
+  SDK-managed classes from `agents/tool.py`: `WebSearchTool`,
+  `FileSearchTool`, `ComputerTool`, `HostedMCPTool`, `CodeInterpreterTool`,
+  `ImageGenerationTool`, `LocalShellTool`, `ShellTool`, `ApplyPatchTool`,
+  `CustomTool`, `ToolSearchTool`. Each occurrence emits a `HostedToolDef`
+  and a `HostedToolRef` edge on the owning agent — separate from regular
+  `ToolRef`s, since hosted tools have no function body.
+- **MCP servers recognized inside `mcp_servers=[...]`** — the three
+  transport classes from `agents/mcp/server.py`: `MCPServerStdio` (stdio),
+  `MCPServerSse` (sse), `MCPServerStreamableHttp` (streamable_http). Both
+  the inline form (`mcp_servers=[MCPServerStdio(...)]`) and the
+  `async with X() as srv:` alias form are resolved to typed `MCPServerDef`
+  records.
+- **Guardrails**: `@input_guardrail` and `@output_guardrail` decorated
+  functions are discovered as a separate inventory and resolved as edges
+  from each agent.
+- **Sessions**: construction sites of `SQLiteSession`, `RedisSession`,
+  `EncryptedSession`, etc. are catalogued.
 
-**OpenAI Agents SDK (tool scope)**
+### Model Context Protocol (MCP, Python)
 
-| Rule    | Title                                                  | Severity |
-| ------- | ------------------------------------------------------ | -------- |
-| OAI-001 | Tool function has no docstring                         | low      |
-| OAI-002 | Tool has no type-annotated parameters                  | medium   |
-| OAI-003 | `@function_tool(strict_mode=False)` — schema not enforced | medium |
-| OAI-004 | No `failure_error_function` — errors propagate raw     | medium   |
-| OAI-005 | HTTP call without `timeout=`                           | high     |
-| OAI-006 | Path-like param passed to I/O without normalization    | high     |
+- **Server registrations recognized**: `@server.tool`, `@mcp.tool`, and
+  `.register_tool(...)` calls.
+- **Config files recognized**: `mcp.json`, `mcp_servers.json`, and
+  `claude_desktop_config.json` are surfaced as `mcp_config` components.
 
-**OpenAI Agents SDK (agent scope)**
+### NVIDIA OpenShell
 
-| Rule    | Title                                                         | Severity |
-| ------- | ------------------------------------------------------------- | -------- |
-| OAI-101 | Agent with shell tools and no `input_guardrails`              | high     |
-| OAI-102 | `tool_use_behavior="stop_on_first_tool"` — stops after one call | medium |
-| OAI-103 | `tool_choice=required` + `reset_tool_choice=False` — loop risk | high   |
-| OAI-104 | Bare `Agent` (not `SandboxAgent`) with shell-invoking tools   | high     |
-| OAI-105 | Agent uses MCP servers without `input_guardrails`             | high     |
+- **Sandbox policy files recognized**: `openshell/*.yaml` and `*.yml` are
+  surfaced as `sandbox_policy` components.
+- **Shell-invocation surfaces**: any bare function whose body calls
+  `subprocess.*`, `os.system`, or `os.popen` is classified as
+  `shell_invocation` in the inventory.
+- **No detection rules ship here.** The OSH-* rule pack that previously
+  audited these surfaces has moved to a closed-source companion project.
+  Repos that contain shell-invocation tools produce a META-001 info
+  finding ("trustabl does not currently audit this SDK") rather than
+  firing the OSH rules.
+- **Policy generator output** is now a defaults-only `openshell/policy.yaml`
+  starter — the generator still emits a file, but with no OSH findings to
+  shape it, the contents are baseline defaults the user authors against.
 
-**OpenAI Agents SDK (repo scope)**
+### Cross-SDK agent components
 
-| Rule    | Title                                                | Severity |
-| ------- | ---------------------------------------------------- | -------- |
-| OAI-201 | No custom trace processor configured                 | medium   |
+Discovery surfaces agent-related artifacts that aren't tied to a specific
+SDK: `CLAUDE.md`, `.claude/commands/*.md` (slash commands),
+`hooks/*.{py,ts,js,jsx,mjs}`, root-level prompt files, and dependency
+manifests (`pyproject.toml`, `requirements.txt`, `Pipfile`, `poetry.lock`,
+`package.json`, `go.mod`). Two cross-SDK surfaces are additionally **parsed**
+into typed inventory (see the Claude Agent SDK section above):
+`.claude/agents/*.md` into `SubagentDef`, and
+`.claude/settings.json{,.local.json}` into `ClaudeSettings`.
 
-**OpenShell**
+### ScanResult JSON exposure
 
-| Rule    | Title                                              | Severity |
-| ------- | -------------------------------------------------- | -------- |
-| OSH-001 | `subprocess` call with `shell=True`                | critical |
-| OSH-002 | Shell tool without allowed-command list            | high     |
-| OSH-003 | Filesystem write without path restriction          | high     |
-| OSH-004 | No resource limits configured (repo scope)         | medium   |
-| OSH-005 | Broad network egress (no host allowlist)           | high     |
+The `--format json` output exposes the new inventory at the top level of
+`ScanResult`, alongside the existing `tools`/`agents`/`findings` fields:
+
+- `hosted_tools`: `[]HostedToolDef`
+- `mcp_servers`: `[]MCPServerDef`
+- `subagents`: `[]SubagentDef`
+- `claude_settings`: `[]ClaudeSettings`
+
+All four slices are sorted deterministically; the determinism contract is
+enforced by `TestScanDeterministic` over `testdata/deterministic-fixture/`.
+
+### Language scope
+
+| Language   | File inventory | Component discovery | Tool/agent AST discovery |
+| ---------- | -------------- | ------------------- | ------------------------ |
+| Python     | yes            | yes                 | yes                      |
+| TypeScript | yes            | yes                 | not yet                  |
+| JavaScript | yes            | yes                 | not yet                  |
+| Go         | yes            | yes                 | not yet                  |
+
+Only Python is parsed by tree-sitter today. The rule schema's `language:`
+field is in place for multi-language rule sets when those parsers ship.
+
+### Detection rules
+
+Rule packs are organized per SDK under
+`internal/rules/policies/{claude_sdk,openai_sdk}/<topic>.yaml`,
+embedded at build time via `go:embed`. **The rule catalog is in active
+development** — IDs, severities, predicates, and the rules-shipped set
+itself are not yet stable. They have not been validated against a labelled
+real-agent corpus (see [ARCHITECTURE.md §10](ARCHITECTURE.md#10-what-is-intentionally-out)).
+Treat findings as signal to investigate, not as a fixed contract.
+
+Naming convention (subject to change): `CSDK-NNN` for Claude Agent SDK,
+`OAI-NNN` for OpenAI Agents SDK. (OSH-NNN OpenShell rules previously
+shipped here; that pack moved to a closed-source companion project.)

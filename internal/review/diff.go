@@ -48,9 +48,24 @@ func (r *Renderer) Render(result models.ScanResult) string {
 	fmt.Fprintf(&b, "  Languages:      %s\n", csv(result.Languages))
 	fmt.Fprintf(&b, "  SDKs:           %s\n", csv(result.SDKs))
 	fmt.Fprintf(&b, "  Tools found:    %d %s\n", repoToolCount(result),
-		styleDim.Render("(distinct, repo-wide: custom defs + built-in tools granted to agents)"))
+		styleDim.Render("(distinct, repo-wide: custom defs + built-in tools granted to agents + hosted instances)"))
 	fmt.Fprintf(&b, "  Tool defs:      %d %s\n", len(result.Tools),
-		styleDim.Render("(custom @tool functions analysed by tool-scope rules)"))
+		styleDim.Render("(custom @tool / @function_tool functions analysed by tool-scope rules)"))
+	if n := len(result.HostedTools); n > 0 {
+		fmt.Fprintf(&b, "  Hosted tools:   %d %s\n", n,
+			styleDim.Render("("+hostedToolClassList(result.HostedTools)+")"))
+	}
+	if n := len(result.MCPServers); n > 0 {
+		fmt.Fprintf(&b, "  MCP servers:    %d %s\n", n,
+			styleDim.Render("("+mcpServerClassList(result.MCPServers)+")"))
+	}
+	if n := len(result.Subagents); n > 0 {
+		fmt.Fprintf(&b, "  Subagents:      %d %s\n", n,
+			styleDim.Render("("+subagentNamesList(result.Subagents)+")"))
+	}
+	if n := len(result.ClaudeSettings); n > 0 {
+		fmt.Fprintf(&b, "  Claude settings: %d file(s)\n", n)
+	}
 	fmt.Fprintf(&b, "  Agents found:   %d\n", len(result.Agents))
 	fmt.Fprintf(&b, "  Findings:       %d\n", len(result.Findings))
 	sevTag := func(s models.Severity) string {
@@ -108,6 +123,47 @@ func (r *Renderer) Render(result models.ScanResult) string {
 			if tools := toolRefNames(a.ToolRefs); tools != "" {
 				fmt.Fprintf(&b, "      %s %s\n", styleDim.Render("tools:"), tools)
 			}
+			if hosted := hostedToolRefNames(a.HostedToolRefs); hosted != "" {
+				fmt.Fprintf(&b, "      %s %s\n", styleDim.Render("hosted tools:"), hosted)
+			}
+			if mcp := mcpServerRefNames(a.MCPServerRefs); mcp != "" {
+				fmt.Fprintf(&b, "      %s %s\n", styleDim.Render("mcp servers:"), mcp)
+			}
+		}
+		b.WriteString("\n")
+	}
+
+	if len(result.Subagents) > 0 {
+		b.WriteString(styleHeader.Render("Subagents") + "\n")
+		for _, s := range result.Subagents {
+			fmt.Fprintf(&b, "  %-32s %s\n", s.Name, styleDim.Render(s.FilePath))
+			meta := []string{}
+			if len(s.Tools) > 0 {
+				meta = append(meta, "tools: "+strings.Join(s.Tools, ", "))
+			}
+			if s.Model != "" {
+				meta = append(meta, "model: "+s.Model)
+			}
+			if len(meta) > 0 {
+				fmt.Fprintf(&b, "      %s\n", styleDim.Render(strings.Join(meta, "    ")))
+			}
+		}
+		b.WriteString("\n")
+	}
+
+	if len(result.ClaudeSettings) > 0 {
+		b.WriteString(styleHeader.Render("Claude settings") + "\n")
+		for _, s := range result.ClaudeSettings {
+			meta := []string{}
+			if s.DefaultMode != "" {
+				meta = append(meta, "defaultMode="+s.DefaultMode)
+			}
+			meta = append(meta,
+				fmt.Sprintf("allow:%d", len(s.Permissions.Allow)),
+				fmt.Sprintf("deny:%d", len(s.Permissions.Deny)),
+				fmt.Sprintf("ask:%d", len(s.Permissions.Ask)),
+			)
+			fmt.Fprintf(&b, "  %-32s %s\n", s.FilePath, styleDim.Render(strings.Join(meta, "  ")))
 		}
 		b.WriteString("\n")
 	}
@@ -211,10 +267,10 @@ func csv[T ~string](items []T) string {
 }
 
 // repoToolCount is the distinct repo-wide tool surface: every custom tool
-// definition plus every tool name granted to any agent (quote-stripped,
-// deduped). This is the honest "how many tools does this repo expose"
-// number — len(result.Tools) alone reads as 0 for repos that only wire
-// built-in tools into agents.
+// definition, every tool name granted to any agent (quote-stripped, deduped),
+// and every hosted-tool class. This is the honest "how many tools does this
+// repo expose" number — len(result.Tools) alone reads as 0 for repos that
+// only wire built-in tools into agents or use SDK-managed hosted tools.
 func repoToolCount(result models.ScanResult) int {
 	seen := make(map[string]struct{})
 	for _, t := range result.Tools {
@@ -224,6 +280,9 @@ func repoToolCount(result models.ScanResult) int {
 		for _, r := range a.ToolRefs {
 			seen[strings.Trim(r.Name, `"'`)] = struct{}{}
 		}
+	}
+	for _, h := range result.HostedTools {
+		seen[h.Class] = struct{}{}
 	}
 	return len(seen)
 }
@@ -239,6 +298,98 @@ func toolRefNames(refs []models.ToolRef) string {
 	parts := make([]string, len(refs))
 	for i, r := range refs {
 		parts[i] = strings.Trim(r.Name, `"'`)
+	}
+	return strings.Join(parts, ", ")
+}
+
+// hostedToolRefNames renders the agent's hosted-tool classes (WebSearchTool,
+// FileSearchTool, ...). These are OpenAI Agents SDK SDK-managed runtimes
+// instantiated inline in `tools=[...]` and never have a function body to
+// analyse.
+func hostedToolRefNames(refs []models.HostedToolRef) string {
+	if len(refs) == 0 {
+		return ""
+	}
+	parts := make([]string, len(refs))
+	for i, r := range refs {
+		parts[i] = r.Class
+	}
+	return strings.Join(parts, ", ")
+}
+
+// mcpServerRefNames renders the agent's MCP server classes with transport
+// hint (stdio / sse / streamable_http). External refs (unresolvable alias
+// or unknown class) render as the raw name with an "(external)" marker.
+func mcpServerRefNames(refs []models.MCPServerRef) string {
+	if len(refs) == 0 {
+		return ""
+	}
+	parts := make([]string, len(refs))
+	for i, r := range refs {
+		switch {
+		case r.Resolved != nil:
+			parts[i] = fmt.Sprintf("%s (%s)", r.Resolved.Class, r.Resolved.Transport)
+		case r.External:
+			parts[i] = r.Class + " (external)"
+		default:
+			parts[i] = r.Class
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// hostedToolClassList renders distinct hosted-tool classes for the scan
+// summary one-liner. The same class instantiated on N agents collapses to a
+// single token.
+func hostedToolClassList(hs []models.HostedToolDef) string {
+	if len(hs) == 0 {
+		return ""
+	}
+	seen := make(map[string]bool)
+	var classes []string
+	for _, h := range hs {
+		if !seen[h.Class] {
+			seen[h.Class] = true
+			classes = append(classes, h.Class)
+		}
+	}
+	return strings.Join(classes, ", ")
+}
+
+// mcpServerClassList renders MCP server classes with their multiplicity for
+// the scan summary one-liner (e.g. "MCPServerStdio×2, MCPServerSse").
+func mcpServerClassList(ms []models.MCPServerDef) string {
+	if len(ms) == 0 {
+		return ""
+	}
+	counts := map[string]int{}
+	order := []string{}
+	for _, m := range ms {
+		if _, ok := counts[m.Class]; !ok {
+			order = append(order, m.Class)
+		}
+		counts[m.Class]++
+	}
+	parts := make([]string, len(order))
+	for i, c := range order {
+		if counts[c] > 1 {
+			parts[i] = fmt.Sprintf("%s×%d", c, counts[c])
+		} else {
+			parts[i] = c
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// subagentNamesList renders the discovered subagent names for the scan
+// summary one-liner.
+func subagentNamesList(subs []models.SubagentDef) string {
+	if len(subs) == 0 {
+		return ""
+	}
+	parts := make([]string, len(subs))
+	for i, s := range subs {
+		parts[i] = s.Name
 	}
 	return strings.Join(parts, ", ")
 }

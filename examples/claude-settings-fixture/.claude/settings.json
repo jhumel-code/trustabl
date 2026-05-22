@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": ["Bash(npm test)", "Read(./src/**)"],
+    "deny": ["Bash(curl *)", "Read(./.env)", "WebFetch"],
+    "ask": ["Edit(./infra/**)"],
+    "defaultMode": "default"
+  },
+  "env": {
+    "PROJECT_NAME": "claude-settings-fixture"
+  }
+}

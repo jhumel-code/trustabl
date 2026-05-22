@@ -65,6 +65,11 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 
 	importsByFile := buildImportsByFile(parsed)
 
+	mcpAliasesByFile := make(map[string]map[string]models.MCPServerDef)
+	for _, pf := range parsed {
+		mcpAliasesByFile[pf.RelPath] = collectWithStatementMCPAliases(pf)
+	}
+
 	for i := range inv.Agents {
 		a := &inv.Agents[i]
 		if a.Opaque {
@@ -74,6 +79,15 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 		toolsKwarg := agentKwarg(a, "tools")
 		if toolsKwarg != nil && toolsKwarg.Value != nil && toolsKwarg.Value.Kind == models.ExprList {
 			for _, item := range toolsKwarg.Value.List {
+				// Hosted-tool call (e.g. WebSearchTool()) — emit a HostedToolDef
+				// and a HostedToolRef. These never resolve to a ToolDef.
+				if h, ok := classifyHostedToolCall(item, a.FilePath, a.Line); ok {
+					inv.HostedTools = append(inv.HostedTools, h)
+					ref := models.HostedToolRef{Class: h.Class}
+					ref.Resolved = &inv.HostedTools[len(inv.HostedTools)-1]
+					a.HostedToolRefs = append(a.HostedToolRefs, ref)
+					continue
+				}
 				ref := models.ToolRef{Name: item.Text}
 				var td *models.ToolDef
 				if t := toolsByFileSym[a.FilePath][item.Text]; t != nil {
@@ -99,8 +113,110 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 			a.Opaque = true
 		}
 
+		mcpKwarg := agentKwarg(a, "mcp_servers")
+		if mcpKwarg != nil && mcpKwarg.Value != nil && mcpKwarg.Value.Kind == models.ExprList {
+			for _, item := range mcpKwarg.Value.List {
+				if m, ok := classifyMCPServerCall(item, a.FilePath, a.Line); ok {
+					inv.MCPServers = append(inv.MCPServers, m)
+					a.MCPServerRefs = append(a.MCPServerRefs, models.MCPServerRef{Class: m.Class})
+					continue
+				}
+				// Alias from `async with MCPServer*(...) as srv:`. The def is
+				// attributed to the AGENT's line (not the with-statement line)
+				// so the post-sort re-resolution loop — keyed on
+				// (agent.FilePath, agent.Line, Class) — matches it uniformly
+				// with inline servers. v1 simplification: one alias referenced
+				// by N agents yields N MCPServerDef entries, one per agent.
+				// TODO(v2): alias resolution is same-file only — an alias imported from
+				// another module is not resolved and falls through to External.
+				if item.Kind == models.ExprNameRef {
+					if aliasDef, ok := mcpAliasesByFile[a.FilePath][item.Text]; ok {
+						inv.MCPServers = append(inv.MCPServers, models.MCPServerDef{
+							Class:     aliasDef.Class,
+							Transport: aliasDef.Transport,
+							SDK:       models.SDKOpenAIAgents,
+							FilePath:  a.FilePath,
+							Line:      a.Line,
+						})
+						a.MCPServerRefs = append(a.MCPServerRefs, models.MCPServerRef{Class: aliasDef.Class})
+						continue
+					}
+				}
+				a.MCPServerRefs = append(a.MCPServerRefs, models.MCPServerRef{
+					Class:    item.Text,
+					External: true,
+				})
+			}
+		} else if mcpKwarg != nil {
+			// Intentional asymmetry vs. tools=: a non-list mcp_servers= value
+			// (e.g. mcp_servers=server_list_var) does NOT set a.Opaque, because
+			// MCP-server opaqueness is orthogonal to tool-list opaqueness for
+			// downstream rules. A future rule that needs an "MCP servers were
+			// declared but their identities are opaque" signal would set a
+			// dedicated flag on AgentDef, not reuse Opaque.
+		}
+
 		resolveGuardKwarg(a, "input_guardrails", &a.InputGuards, guardsByFileSym[a.FilePath])
 		resolveGuardKwarg(a, "output_guardrails", &a.OutputGuards, guardsByFileSym[a.FilePath])
+	}
+
+	sortHostedTools(inv.HostedTools)
+	sortMCPServers(inv.MCPServers)
+
+	// Re-resolve HostedToolRef pointers after sorting. The append-and-take-address
+	// pattern in the loop above leaves stale pointers when sort moves elements;
+	// also, append itself can realloc the backing array. For each agent, walk
+	// inv.HostedTools to find matches by (FilePath, Line, Class), consuming each
+	// match at most once so duplicate classes in the same agent (e.g.
+	// tools=[WebSearchTool(), WebSearchTool()]) resolve to distinct entries.
+	for i := range inv.Agents {
+		a := &inv.Agents[i]
+		if len(a.HostedToolRefs) == 0 {
+			continue
+		}
+		consumed := make(map[int]bool, len(a.HostedToolRefs))
+		for j := range a.HostedToolRefs {
+			ref := &a.HostedToolRefs[j]
+			for k := range inv.HostedTools {
+				if consumed[k] {
+					continue
+				}
+				h := &inv.HostedTools[k]
+				if h.FilePath == a.FilePath && h.Line == a.Line && h.Class == ref.Class {
+					ref.Resolved = h
+					consumed[k] = true
+					break
+				}
+			}
+		}
+	}
+
+	// Re-resolve MCPServerRef pointers after sorting (same rationale as
+	// HostedToolRef re-resolution above — append + sort can invalidate
+	// the inline pointers).
+	for i := range inv.Agents {
+		a := &inv.Agents[i]
+		if len(a.MCPServerRefs) == 0 {
+			continue
+		}
+		consumed := make(map[int]bool, len(a.MCPServerRefs))
+		for j := range a.MCPServerRefs {
+			ref := &a.MCPServerRefs[j]
+			if ref.External {
+				continue
+			}
+			for k := range inv.MCPServers {
+				if consumed[k] {
+					continue
+				}
+				m := &inv.MCPServers[k]
+				if m.FilePath == a.FilePath && m.Line == a.Line && m.Class == ref.Class {
+					ref.Resolved = m
+					consumed[k] = true
+					break
+				}
+			}
+		}
 	}
 }
 

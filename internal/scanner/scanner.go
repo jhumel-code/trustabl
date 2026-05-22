@@ -69,6 +69,8 @@ func Run(cfg Config) (models.ScanResult, error) {
 		UsesDefaultTracing: computeUsesDefaultTracing(parsed),
 	}
 	analysis.ResolveEdges(&inventory, parsed)
+	inventory.Subagents = analysis.DiscoverSubagents(profile.Manifest)
+	inventory.ClaudeSettings = analysis.DiscoverClaudeSettings(profile.Manifest)
 
 	// Phase 2b: policy selection
 	registry, err := rules.LoadFor(rules.DefaultFS(), inventory.SDKsDetected)
@@ -100,6 +102,10 @@ func Run(cfg Config) (models.ScanResult, error) {
 		Manifest:           profile.Manifest,
 		Tools:              tools,
 		Agents:             inventory.Agents,
+		HostedTools:        inventory.HostedTools,
+		MCPServers:         inventory.MCPServers,
+		Subagents:          inventory.Subagents,
+		ClaudeSettings:     inventory.ClaudeSettings,
 		Findings:           findings,
 		Readiness:          readiness,
 		OverallScore:       overall,

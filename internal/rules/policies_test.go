@@ -737,6 +737,7 @@ var policyRepoRuleCases = []policyRepoCase{
 		models.RepoInventory{},
 		false},
 
+
 	// ─── OAI-201 default tracing (repo-scoped) ───────────────────────────────
 	{"OAI-201 fires when using default tracing", "OAI-201",
 		models.RepoProfile{},

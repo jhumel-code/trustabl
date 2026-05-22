@@ -11,13 +11,17 @@ this file is scoped to the Go binary in this repository.
 
 ## 1. Goal
 
-trustabl scans a Claude Agent SDK repository, finds reliability weaknesses in
-its tool definitions, and emits committable artifacts that close those gaps:
+trustabl scans an agent SDK repository (Claude Agent SDK, OpenAI Agents SDK,
+MCP), finds reliability weaknesses in its tool definitions, and emits
+committable artifacts that close those gaps:
 
 - `hooks/pretooluse_validate.py` and `hooks/posttooluse_log.py` — Claude Agent
   SDK hook scripts the user commits to their own repo.
-- `openshell/policy.yaml` — an NVIDIA OpenShell sandbox policy gating the
-  agent's runtime privileges.
+- `openshell/policy.yaml` — a defaults-only NVIDIA OpenShell sandbox policy
+  starter. The detection rules that would populate it shipped in a previous
+  version of trustabl and now live in a closed-source companion project; the
+  generator still emits a starter file so users have somewhere to begin
+  authoring policy by hand.
 
 Single Go binary, no daemon, no server. Web app and CI surfaces are out of
 scope for this skeleton (see `README.md` § Status).
@@ -59,34 +63,73 @@ The scan is a staged pipeline. There is no concurrency between stages and no
 state shared across runs. `scanner.Run` ([internal/scanner/scanner.go](internal/scanner/scanner.go))
 calls each phase in order; the output of one is the typed input to the next.
 
+```mermaid
+flowchart TD
+    target["target (path or URL)"]
+
+    subgraph P1["Phase 1 — Reconnaissance"]
+        recon["ingestion.Recon"]
+        profile[["RepoProfile<br/>Languages · SDKDeps · Manifest · Components"]]
+        recon --> profile
+    end
+
+    subgraph P2a["Phase 2a — Inventory (per-language AST)"]
+        disc["analysis.DiscoverTools<br/>DiscoverAgents<br/>DiscoverGuardrails<br/>DiscoverSessions<br/>DiscoverSubagents<br/>DiscoverClaudeSettings"]
+        edges["analysis.ResolveEdges"]
+        inv[["RepoInventory<br/>Tools · Agents · Guardrails · Sessions<br/>SDKsDetected · UsesDefaultTracing"]]
+        disc --> edges --> inv
+    end
+
+    subgraph P2b["Phase 2b — Policy selection"]
+        loadfor["rules.LoadFor(SDKsDetected)"]
+        meta["scanner.SelectAndEmitMETA<br/>scanner.EmitCoverageMETA"]
+        reg[["Registry + META-001..004"]]
+        loadfor --> reg
+        meta --> reg
+    end
+
+    subgraph P2c["Phase 2c — Analysis"]
+        run["Registry.Run"]
+        findings[["Findings<br/>sorted by (RuleID, FilePath, Line)"]]
+        run --> findings
+    end
+
+    subgraph Tail["Scoring · Generation · Review"]
+        score["analysis.Score"]
+        gen["generation.GenerateHooks<br/>generation.GeneratePolicy"]
+        score --> gen
+    end
+
+    result[["ScanResult<br/>(JSON-serializable, returned to CLI)"]]
+
+    target --> recon
+    profile --> disc
+    profile --> loadfor
+    inv --> loadfor
+    inv --> meta
+    inv --> run
+    reg --> run
+    findings --> score
+    gen --> result
 ```
-target (path or URL)
-    │
-    ▼
-PHASE 1 — Reconnaissance (ingestion.Recon)
-  Output: RepoProfile {Languages, SDKDeps, Manifest, Components}
-    │
-    ▼
-PHASE 2a — Inventory (analysis.DiscoverTools, DiscoverAgents,
-                       DiscoverGuardrails, DiscoverSessions, ResolveEdges)
-  Output: RepoInventory {Tools, Agents, Guardrails, Sessions, SDKsDetected,
-                          UsesDefaultTracing}
-    │
-    ▼
-PHASE 2b — Policy selection (rules.LoadFor + SelectAndEmitMETA)
-  Loads policy packs matching SDKsDetected; emits META-001/002/003 findings
-    │
-    ▼
-PHASE 2c — Analysis (detectors.Registry.Run)
-  ToolDetectors fire per inv.Tools entry
-  AgentDetectors fire per inv.Agents entry
-  RepoDetectors fire once per scan
-    │
-    ▼
-Scoring → Generation → Review
-    │
-    ▼
-ScanResult  (JSON-serializable, returned to the CLI)
+
+The three scopes a rule can fire at — `tool`, `agent`, `repo` — flow into
+`Registry.Run` from the same `RepoInventory`, but each detector consumes a
+different typed input:
+
+```mermaid
+flowchart LR
+    inv[("RepoInventory")]
+    profile[("RepoProfile")]
+
+    inv -- "for each ToolDef" --> tool["ToolDetector<br/>Applies(ToolDef)<br/>Detect(ToolDef, ParsedFile, Inv)"]
+    inv -- "for each AgentDef" --> agent["AgentDetector<br/>Applies(AgentDef)<br/>Detect(AgentDef, Inv)"]
+    profile --> repo["RepoDetector<br/>Applies(Profile, Inv)<br/>Detect(Profile, Inv) (once)"]
+    inv --> repo
+
+    tool --> f[("Findings")]
+    agent --> f
+    repo --> f
 ```
 
 ### Phase 1 — Reconnaissance ([internal/ingestion/normalizer.go](internal/ingestion/normalizer.go))
@@ -118,9 +161,32 @@ For each language Phase 1 cleared, do the AST work and produce a `RepoInventory`
   decorated functions.
 - **DiscoverSessions** — finds construction sites for `*Session` classes from
   the agents SDK.
+- **DiscoverSubagents** (`subagents.go`) — reads every `.claude/agents/*.md`
+  component file in the manifest, parses YAML frontmatter (the block between
+  leading `---` markers), and emits one `SubagentDef` per file with frontmatter.
+  Files without frontmatter or with malformed YAML are skipped silently. The
+  `tools:` field accepts both the comma-separated scalar form
+  (`tools: Read, Bash`) and the YAML-list form (`tools:\n - Read\n - Bash`).
+- **DiscoverClaudeSettings** (`claude_settings.go`) — JSON-parses every
+  `.claude/settings.json` (and `settings.local.json`) component into a typed
+  `ClaudeSettings`. The `permissions` block's allow/deny/ask lists are
+  decomposed via `ParsePermissionRule` into typed `PermissionRule` records
+  (`Tool`, `Pattern`, `Raw`) using the grammar `<Tool>` | `<Tool>(<pattern>)`
+  plus the literal MCP-tool form `mcp__<server>__<tool>`. Malformed JSON is
+  skipped silently.
 - **ResolveEdges** — links agent `tools=`, `handoffs=`, `input_guardrails=`
   references to discovered definitions in the same repo; cross-module resolution
   uses import statements; unresolvable references are flagged `External=true`.
+  Hosted-tool calls (`WebSearchTool()`, `FileSearchTool()`, etc.) inside
+  `tools=[...]` are classified into `HostedToolDef` records and a parallel
+  `HostedToolRefs` edge slice on the owning agent — separate from regular
+  `ToolRefs`. `mcp_servers=[...]` is processed for MCP server constructors
+  (`MCPServerStdio`, `MCPServerSse`, `MCPServerStreamableHttp`) — both inline
+  calls and aliases bound by `async with X() as srv:`. Each match becomes an
+  `MCPServerDef` and an entry in `MCPServerRefs`. After all agents are
+  processed, `inv.HostedTools` and `inv.MCPServers` are sorted by
+  `(FilePath, Line, Class)` and `HostedToolRefs`/`MCPServerRefs.Resolved`
+  pointers are re-resolved to the post-sort positions.
 
 **Discovered agent components** (`Components []AgentComponent`).
 
@@ -176,7 +242,10 @@ than just text matching.
 
 2. **Bare functions that shell out.** Any `function_definition` not already
    captured above whose body calls `subprocess.*`, `os.system`, or `os.popen`
-   is a `KindShellInvocation`. These feed the OpenShell detectors.
+   is a `KindShellInvocation`. These are surfaced in the inventory and feed
+   `SDKsDetected` so a META-001 finding flags the repo as using an
+   unaudited SDK. The OpenShell detection rules that previously consumed
+   these tools moved to a closed-source companion project.
 
 Each `ToolDef` carries `Language: python` (set unconditionally today —
 discovery is python-only).
@@ -228,10 +297,13 @@ Pipeline at startup:
 
 1. `rules.DefaultFS()` returns the `embed.FS`-backed filesystem rooted at
    `internal/rules/policies/`.
-2. `rules.LoadRegistry(fsys)` walks recursively, decodes every `.yaml` file,
-   validates required fields / enums / cross-file rule-ID uniqueness, then
-   wraps each `RuleDef` as a `ToolRuleDetector`, `AgentRuleDetector`, or
-   `RepoRuleDetector` based on the rule's `scope:` field.
+2. `rules.LoadFor(fsys, inv.SDKsDetected)` walks recursively, decodes every
+   `.yaml` file, validates required fields / enums / cross-file rule-ID
+   uniqueness, then wraps each `RuleDef` whose category matches an SDK in
+   `SDKsDetected` as a `ToolRuleDetector`, `AgentRuleDetector`, or
+   `RepoRuleDetector` based on the rule's `scope:` field. (Tests that want
+   every shipped rule loaded unconditionally use `rules.LoadRegistry(fsys)`
+   instead — same loader, no SDK filter.)
 3. Each detector's `Detect` evaluates the rule's `MatchExpr` against the
    typed input; on a match it emits one `Finding` populated from the rule's
    metadata.
@@ -257,11 +329,6 @@ Shipped rules (one row per YAML rule entry):
 | CSDK-006 | tool | claude_sdk | medium   | `claude_sdk/idempotency.yaml`            | Mutating verb in name + no idempotency-key param                    |
 | CSDK-007 | tool | claude_sdk | low      | `claude_sdk/tool_definition.yaml`        | Ambiguous name (`process`, `handle`, `run`, …)                      |
 | CSDK-101 | agent | claude_sdk | high    | `claude_sdk/agent_safety.yaml`           | Claude `AgentDefinition` subagent granted the built-in `Bash` tool  |
-| OSH-001 | tool  | openshell  | critical | `openshell/shell.yaml`                   | `subprocess(..., shell=True)`                                       |
-| OSH-002 | tool  | openshell  | high     | `openshell/shell.yaml`                   | Shell call without `ALLOWED_COMMANDS` allowlist                     |
-| OSH-003 | tool  | openshell  | high     | `openshell/filesystem.yaml`              | `open(..., "w")` / `shutil.move`/`rmtree` etc.                      |
-| OSH-004 | repo  | openshell  | medium   | `openshell/resources.yaml`               | No resource limits configured anywhere                              |
-| OSH-005 | tool  | openshell  | high     | `openshell/network.yaml`                 | HTTP call with dynamic URL + no host allowlist                      |
 | OAI-001 | tool  | openai_sdk | low      | `openai_sdk/tool_definition.yaml`        | Tool function has no docstring                                      |
 | OAI-002 | tool  | openai_sdk | medium   | `openai_sdk/tool_definition.yaml`        | Tool has no type-annotated parameters                               |
 | OAI-003 | tool  | openai_sdk | medium   | `openai_sdk/decorator_config.yaml`       | `@function_tool(strict_mode=False)` — schema not enforced           |
@@ -310,13 +377,14 @@ bug.
   a runtime mutation rather than a code change). `stanzaForFinding` maps each
   hook-eligible rule to the Python lines it injects.
 - **Policy** ([policy.go](internal/generation/policy.go)) — emits
-  `openshell/policy.yaml`. With no OSH findings the generator still produces a
-  defaults-only policy so the user has a starter file. Each OSH rule maps to a
-  policy field: OSH-001 → globalDeny; OSH-002 → per-tool commands.allowed;
-  OSH-003 → per-tool filesystem.writePrefixes; OSH-005 → per-tool
-  network.allowedHosts. Placeholders are emitted as `# TODO:` comments so
-  users see what to fill in, rather than the generator inventing plausible
-  values.
+  `openshell/policy.yaml`. The generator currently always produces a
+  defaults-only starter policy, because the OpenShell detection rule pack
+  (OSH-001..005) was removed from this open-source repo and moved to a
+  closed-source companion project. The generator's per-rule field mapping
+  (OSH-001 → globalDeny, OSH-002 → per-tool commands.allowed, OSH-003 →
+  per-tool filesystem.writePrefixes, OSH-005 → per-tool
+  network.allowedHosts) is preserved in code so the rule pack can be
+  re-introduced or re-wired without engine changes.
 
 The OpenShell schema (`apiVersion: openshell.nvidia.com/v1`, `kind:
 SandboxPolicy`) is the generator's interpretation pending the real spec link;
@@ -343,6 +411,73 @@ All cross-package values live in [internal/models/](internal/models/). Anything
 that crosses ingestion → analysis → generation → review is a typed struct with
 JSON tags, because `ScanResult` is the contract for `--format json` CI output.
 
+```mermaid
+classDiagram
+    class ScanResult {
+        ScanID
+        Repo
+        Languages
+        SDKs
+        OverallScore
+    }
+    class RepoProfile {
+        Languages
+        SDKDeps
+        Manifest
+    }
+    class RepoInventory {
+        Tools
+        Agents
+        Guardrails
+        Sessions
+        SDKsDetected
+        UsesDefaultTracing
+    }
+    class ToolDef {
+        Name
+        Kind
+        Language
+        Description
+        HasTypedParams
+        Config
+        Facts
+    }
+    class AgentDef {
+        SDK
+        Class
+        Name
+        Kwargs : KwargTree
+        ToolRefs
+        HandoffRefs
+        InputGuards
+        OutputGuards
+        Opaque
+    }
+    class Finding {
+        RuleID
+        Category
+        Severity
+        Confidence
+        Explanation
+        SuggestedFix
+        FixHints
+    }
+    class ScanManifest {
+        RepoRoot
+        PythonFiles
+        Components
+    }
+
+    ScanResult o-- RepoInventory : embeds Tools/Agents
+    ScanResult *-- "many" Finding
+    ScanResult *-- ScanManifest
+    RepoProfile *-- ScanManifest
+    RepoInventory *-- "many" ToolDef
+    RepoInventory *-- "many" AgentDef
+    AgentDef o-- "many" ToolDef : ToolRefs resolve
+    AgentDef o-- "many" AgentDef : HandoffRefs resolve
+```
+
 ```go
 // Phase 1 output
 RepoProfile {
@@ -361,6 +496,9 @@ RepoInventory {
     Guardrails         []GuardrailDef
     Sessions           []SessionUse
     HostedTools        []HostedToolDef
+    MCPServers         []MCPServerDef
+    Subagents          []SubagentDef
+    ClaudeSettings     []ClaudeSettings
     SDKsDetected       []SDK     // observed in code (drives Phase 2b policy selection)
     Manifest           ScanManifest
     UsesDefaultTracing bool
@@ -368,13 +506,15 @@ RepoInventory {
 
 AgentDef {
     SDK, Class, FilePath string; Line, EndLine int
-    Name         string         // from name= kwarg literal
-    Kwargs       *KwargTree     // all constructor kwargs, typed
-    ToolRefs     []ToolRef      // resolved to ToolDef or flagged External
-    HandoffRefs  []AgentRef
-    InputGuards  []GuardrailRef
-    OutputGuards []GuardrailRef
-    Opaque       bool           // Agent(**config) or tools=non-literal
+    Name           string         // from name= kwarg literal
+    Kwargs         *KwargTree     // all constructor kwargs, typed
+    ToolRefs       []ToolRef      // resolved to ToolDef or flagged External
+    HostedToolRefs []HostedToolRef
+    MCPServerRefs  []MCPServerRef
+    HandoffRefs    []AgentRef
+    InputGuards    []GuardrailRef
+    OutputGuards   []GuardrailRef
+    Opaque         bool           // Agent(**config) or tools=non-literal
 }
 
 // KwargTree holds a kwarg value as either a leaf or a nested map
@@ -409,6 +549,64 @@ AgentComponent {
     Note     string
 }
 
+HostedToolDef {
+    Class    string     // "WebSearchTool" | "FileSearchTool" | "ComputerTool" | ...
+    SDK      SDK
+    FilePath string
+    Line     int
+    Kwargs   *KwargTree
+}
+
+HostedToolRef {
+    Class    string         // matches HostedToolDef.Class
+    Resolved *HostedToolDef // nil if not resolved
+}
+
+MCPServerDef {
+    Class     string     // "MCPServerStdio" | "MCPServerSse" | "MCPServerStreamableHttp"
+    Transport string     // "stdio" | "sse" | "streamable_http"
+    SDK       SDK
+    FilePath  string
+    Line      int
+    Kwargs    *KwargTree
+}
+
+MCPServerRef {
+    Class    string        // matches MCPServerDef.Class
+    Resolved *MCPServerDef // nil if not resolved
+    External bool
+}
+
+SubagentDef {
+    Name        string
+    Description string
+    Tools       []string   // parsed from frontmatter tools: field
+    Model       string
+    FilePath    string
+}
+
+PermissionRule {
+    Tool    string  // "Bash" | "Read" | "Edit" | "WebFetch" | "MCP" | "Agent" | ...
+    Pattern string  // empty for bare tool; "npm run *" for "Bash(npm run *)"
+    Raw     string  // original string from JSON for attribution
+}
+
+ClaudePermissions {
+    Allow []PermissionRule
+    Deny  []PermissionRule
+    Ask   []PermissionRule
+}
+
+ClaudeSettings {
+    FilePath        string
+    Permissions     ClaudePermissions
+    DefaultMode     string
+    AdditionalDirs  []string
+    HasEnvBlock     bool
+    HasHooks        bool
+    HasSandboxBlock bool
+}
+
 // Top-level output
 ScanResult {
     ScanID             string
@@ -418,6 +616,10 @@ ScanResult {
     Manifest           ScanManifest
     Tools              []ToolDef
     Agents             []AgentDef
+    HostedTools        []HostedToolDef
+    MCPServers         []MCPServerDef
+    Subagents          []SubagentDef
+    ClaudeSettings     []ClaudeSettings
     Findings           []Finding
     Readiness          []ToolReadiness
     OverallScore       float64
@@ -477,12 +679,12 @@ internal/
 │   ├── embed.go                 //go:embed all:policies → DefaultFS().
 │   └── policies/                Embedded YAML rule definitions.
 │       ├── claude_sdk/
-│       │   ├── tool_definition.yaml   CSDK-001, CSDK-002, CSDK-007
-│       │   ├── network.yaml           CSDK-003
-│       │   ├── path_safety.yaml       CSDK-004
+│       │   ├── agent_safety.yaml      CSDK-101 (agent scope)
 │       │   ├── error_handling.yaml    CSDK-005
 │       │   ├── idempotency.yaml       CSDK-006
-│       │   └── agent_safety.yaml      CSDK-101 (agent scope)
+│       │   ├── network.yaml           CSDK-003
+│       │   ├── path_safety.yaml       CSDK-004
+│       │   └── tool_definition.yaml   CSDK-001, CSDK-002, CSDK-007
 │       ├── openai_sdk/
 │       │   ├── tool_definition.yaml   OAI-001, OAI-002
 │       │   ├── decorator_config.yaml  OAI-003, OAI-004
@@ -491,11 +693,7 @@ internal/
 │       │   ├── agent_safety.yaml      OAI-101, OAI-102, OAI-103, OAI-104
 │       │   ├── mcp_safety.yaml        OAI-105
 │       │   └── tracing.yaml           OAI-201
-│       └── openshell/
-│           ├── shell.yaml             OSH-001, OSH-002
-│           ├── filesystem.yaml        OSH-003
-│           ├── resources.yaml         OSH-004
-│           └── network.yaml           OSH-005
+│       └── (no openshell/ — OSH-001..005 moved to a closed-source project)
 ├── generation/                  Hooks + Policy generators (deterministic).
 ├── review/                      Human renderer, apply, export ZIP.
 └── inference/                   BYOK inference router (stub; cache only).
@@ -553,7 +751,7 @@ rules:
 
 ### Adding a rule
 
-1. Pick the right category subdirectory (`claude_sdk/`, `openai_sdk/`, or `openshell/`).
+1. Pick the right category subdirectory (`claude_sdk/` or `openai_sdk/`).
 2. Either append to an existing topic file or create a new `<topic>.yaml`
    file — the loader walks recursively so new files are picked up
    automatically by `go:embed`.
@@ -628,16 +826,38 @@ or any other `fs.FS` to `LoadRegistry` to exercise alternate rule sets.
 
 ### Detector interface boundary ([detectors/detector.go](internal/analysis/detectors/detector.go))
 
-The `detectors` package is now interface + runtime only. It owns:
+The `detectors` package is interface + runtime only. It owns three typed
+interfaces — `ToolDetector`, `AgentDetector`, `RepoDetector` — and the
+`Registry` type that runs them. `Registry.New(tool, agent, repo []…)` accepts
+three slices; `Run`, `Subset(cats…)`, `ApplicableCategories`, and `Count`
+operate on the union. There is no single `Detector` interface and no
+`Singleton` flag — scope is now an explicit choice at construction time.
 
-- The `Detector` interface (RuleID, Category, Applies, Detect, Singleton).
-- The `Registry` type with `New(ds []Detector)`, `Subset(cats...)`, `Run`,
-  and `Count`.
+The package deliberately ships no concrete detectors. Any producer (the rules
+engine today; potentially a future Go-native or LLM-judged producer) builds
+its own typed slices and hands them to `detectors.New(...)`. This keeps the
+runtime agnostic to where a rule comes from.
 
-It deliberately ships no concrete detectors. Any producer (the rules engine
-today; potentially a future Go-native or LLM-judged producer) builds its own
-`[]Detector` and hands it to `detectors.New(...)`. This keeps the runtime
-agnostic to where a rule comes from.
+### Rule lifecycle
+
+From YAML source on disk to a `Finding` emitted at scan time:
+
+```mermaid
+flowchart LR
+    yaml["policies/&lt;sdk&gt;/&lt;topic&gt;.yaml"]
+    embed["//go:embed all:policies"]
+    fs[("DefaultFS()<br/>(embed.FS rooted at policies/)")]
+    loader["rules.Load<br/>· KnownFields(true)<br/>· required-field validation<br/>· severity/category/scope enums<br/>· applies_to-vs-scope check<br/>· cross-file ID uniqueness"]
+    rules[("[]PolicyFile")]
+    loadfor["rules.LoadFor(SDKsDetected)<br/>filters by inventory"]
+    wrap["wrap each RuleDef as<br/>ToolRuleDetector / AgentRuleDetector / RepoRuleDetector"]
+    registry[("detectors.Registry")]
+    evaluate["MatchExpr.Evaluate<br/>(recursive conjunctive walker)"]
+    finding[("Finding<br/>RuleID · Severity · Confidence<br/>Explanation · SuggestedFix · FixHints")]
+
+    yaml --> embed --> fs --> loader --> rules --> loadfor --> wrap --> registry
+    registry -- "Run(profile, inv, parsed)" --> evaluate --> finding
+```
 
 ---
 

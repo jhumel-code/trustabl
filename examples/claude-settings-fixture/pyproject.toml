@@ -1,0 +1,4 @@
+[project]
+name = "claude-settings-fixture"
+version = "0.0.0"
+dependencies = ["claude-agent-sdk>=0.1.0"]
