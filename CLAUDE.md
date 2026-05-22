@@ -196,14 +196,38 @@ When facts disagree across documentation:
    wrong, fix it.
 4. **`ARCHITECTURE.md`** describes the current implementation.
 5. **`README.md`** is the external-facing intro.
-6. **`.superpowers/specs/`** holds per-feature design docs (forward-
+6. **`COVERAGE.md`** is the at-a-glance SDK/language coverage matrix.
+7. **`.superpowers/specs/`** holds per-feature design docs (forward-
    looking; may not match current code).
-7. **`.superpowers/plans/`** holds in-flight implementation plans
+8. **`.superpowers/plans/`** holds in-flight implementation plans
    (ephemeral, may be stale).
 
 When updating any of the above, check whether the change requires
 updates to the others — especially `ARCHITECTURE.md` after a wiring
 change, and `schema.yaml` after a schema change.
+
+## Keeping documentation current
+
+Documentation is part of the change, not a follow-up. Any change that
+alters observable behavior MUST update the affected docs in the same
+commit — stale docs are a defect, not a TODO. The three living docs and
+their update triggers:
+
+- **`ARCHITECTURE.md`** — update after any wiring change: a new or removed
+  pipeline stage, a new discovery shape, a changed data-model struct, a new
+  generator, or a moved package. It must always describe what the engine
+  does *today*.
+- **`README.md`** — update when the user-facing surface changes: CLI flags,
+  exit codes, build steps, produced artifacts, or the supported-SDK
+  summary. Keep it honest — do not advertise capabilities that are not
+  wired (e.g. LLM enrichment is opt-in and makes no call without a key).
+- **`COVERAGE.md`** — update whenever SDK or language support changes: a new
+  dep needle, a new discovery pattern, a new rule pack, or a new generated
+  artifact. Re-derive the coverage matrix from the actual code, and bump the
+  `_Last reviewed_` line to the current date and HEAD.
+
+After any such edit, re-scan the precedence list above and reconcile any
+downstream doc that now disagrees, in the same commit.
 
 ## Hard rules
 
