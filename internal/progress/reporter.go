@@ -33,6 +33,11 @@ func pickMode(format string, isTTY, noColor, noProgress bool) Mode {
 	return ModePlain
 }
 
+// PickMode is the exported entry point used by the CLI.
+func PickMode(format string, isTTY, noColor, noProgress bool) Mode {
+	return pickMode(format, isTTY, noColor, noProgress)
+}
+
 type nopReporter struct{}
 
 // NewNop returns a Reporter that does nothing.

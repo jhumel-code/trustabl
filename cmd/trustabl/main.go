@@ -19,9 +19,11 @@ import (
 	"os"
 	"strings"
 
+	"github.com/mattn/go-isatty"
 	"github.com/spf13/cobra"
 
 	"github.com/trustabl/trustabl/internal/models"
+	"github.com/trustabl/trustabl/internal/progress"
 	"github.com/trustabl/trustabl/internal/review"
 	"github.com/trustabl/trustabl/internal/rules"
 	"github.com/trustabl/trustabl/internal/rulesource"
@@ -82,6 +84,7 @@ type scanFlags struct {
 	rulesRepo     string
 	rulesRef      string
 	noRulesUpdate bool
+	noProgress    bool
 }
 
 func newScanCommand() *cobra.Command {
@@ -108,6 +111,8 @@ func newScanCommand() *cobra.Command {
 		"rules branch or tag to use (default: the repo's default branch)")
 	cmd.Flags().BoolVar(&f.noRulesUpdate, "no-rules-update", false,
 		"do not fetch rules; use the local cache only")
+	cmd.Flags().BoolVar(&f.noProgress, "no-progress", false,
+		"disable real-time progress output")
 	return cmd
 }
 
@@ -121,14 +126,81 @@ func runScan(target string, f scanFlags) error {
 		cfg.Categories = cats
 	}
 
-	// Resolve detection rules from the external rules repository.
+	mode := pickScanMode(f)
+
+	// Non-TTY paths run synchronously: resolve, scan, render.
+	if mode != progress.ModeTTY {
+		var rep progress.Reporter = progress.NewNop()
+		if mode == progress.ModePlain {
+			rep = progress.NewPlain(os.Stderr)
+		}
+		return runScanSync(f, cfg, rep)
+	}
+
+	// TTY path: render on the main goroutine, do the job in a goroutine.
+	rep := progress.NewTTY(os.Stderr)
+	var (
+		result models.ScanResult
+		jobErr error
+	)
+	go func() {
+		jobErr = resolveAndScan(&cfg, f, rep, &result)
+		rep.Done()
+	}()
+	if err := rep.Run(); err != nil {
+		return err
+	}
+	return finishScan(result, jobErr, f)
+}
+
+// pickScanMode maps flags + stderr TTY state to a progress mode.
+func pickScanMode(f scanFlags) progress.Mode {
+	isTTY := isatty.IsTerminal(os.Stderr.Fd())
+	return progress.PickMode(f.format, isTTY, f.noColor, f.noProgress)
+}
+
+// runScanSync runs resolution + scan + render inline (plain/nop modes).
+func runScanSync(f scanFlags, cfg scanner.Config, rep progress.Reporter) error {
+	var result models.ScanResult
+	if err := resolveAndScan(&cfg, f, rep, &result); err != nil {
+		return finishScan(result, err, f)
+	}
+	return finishScan(result, nil, f)
+}
+
+// resolveAndScan resolves rules (reporting a "rules" phase) and runs the scan
+// with the reporter attached. The result is written to *out.
+func resolveAndScan(cfg *scanner.Config, f scanFlags, rep progress.Reporter, out *models.ScanResult) error {
+	rep.StartPhase("rules", "Resolving rules")
 	res, err := rulesource.Resolve(rulesConfigFromScan(f), rules.SupportedSchemaVersion)
 	if err != nil {
-		switch {
-		case errors.Is(err, rulesource.ErrNoCompatibleRules):
-			// Rules were available but newer than this build understands, and
-			// no older compatible pack is cached. The fix is a newer engine,
-			// not another fetch.
+		rep.Fatal(err)
+		return err
+	}
+	summary := res.SHA
+	if res.FromCache {
+		summary = res.SHA + " (cached, offline)"
+	}
+	rep.EndPhase(summary)
+
+	cfg.RulesFS = res.FS
+	cfg.RulesSource = res.RepoURL
+	cfg.RulesVersion = res.SHA
+	cfg.RulesFromCache = res.FromCache
+	cfg.Progress = rep
+
+	result, err := scanner.Run(*cfg)
+	if err != nil {
+		return err
+	}
+	*out = result
+	return nil
+}
+
+// finishScan turns a job outcome into output + the process exit code.
+func finishScan(result models.ScanResult, jobErr error, f scanFlags) error {
+	if jobErr != nil {
+		if errors.Is(jobErr, rulesource.ErrNoCompatibleRules) {
 			fmt.Fprintf(os.Stderr,
 				"The rules are newer than this Trustabl build can evaluate "+
 					"(this engine supports rule schema version up to %d).\n",
@@ -136,35 +208,17 @@ func runScan(target string, f scanFlags) error {
 			fmt.Fprintln(os.Stderr,
 				"Upgrade Trustabl, or use --rules-ref to pin an older compatible rules version.")
 			return exitCodeError{2}
-		case errors.Is(err, rulesource.ErrNoRules):
+		}
+		if errors.Is(jobErr, rulesource.ErrNoRules) {
 			fmt.Fprintln(os.Stderr,
 				"No usable rules found: none cached locally and none could be fetched.")
 			fmt.Fprintln(os.Stderr,
 				`Run "trustabl rules pull" to download the rule packs.`)
 			return exitCodeError{2}
-		default:
-			return fmt.Errorf("resolve rules: %w", err)
 		}
-	}
-	// A cache hit is expected (not a warning) when the user opted out of
-	// fetching with --no-rules-update. Only warn when an attempted fetch fell
-	// back to the cache.
-	if res.FromCache && !f.noRulesUpdate {
-		fmt.Fprintf(os.Stderr,
-			"warning: using cached rules %s; could not fetch or use newer rules from %s\n",
-			res.SHA, res.RepoURL)
-	}
-	cfg.RulesFS = res.FS
-	cfg.RulesSource = res.RepoURL
-	cfg.RulesVersion = res.SHA
-	cfg.RulesFromCache = res.FromCache
-
-	result, err := scanner.Run(cfg)
-	if err != nil {
-		return err
+		return jobErr
 	}
 
-	// Output.
 	switch f.format {
 	case "json":
 		if err := emitJSON(result); err != nil {
