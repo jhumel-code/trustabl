@@ -1,6 +1,11 @@
 package progress
 
-import "testing"
+import (
+	"bytes"
+	"errors"
+	"strings"
+	"testing"
+)
 
 func TestPickMode(t *testing.T) {
 	cases := []struct {
@@ -32,4 +37,31 @@ func TestNopWritesNothing(t *testing.T) {
 	r.SetTotal(3)
 	r.Advance("x")
 	r.EndPhase("done")
+}
+
+func TestPlainWritesSummaryLinesOnly(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewPlain(&buf)
+	r.StartPhase("rules", "Resolving rules")
+	r.EndPhase("a3a1502 (cached, offline)")
+	r.StartPhase("inventory", "Inventory")
+	r.SetTotal(18)
+	r.Advance("agent_loop.py") // must NOT print
+	r.EndPhase("7 tools · 2 agents")
+
+	got := buf.String()
+	want := "[rules] a3a1502 (cached, offline)\n[inventory] 7 tools · 2 agents\n"
+	if got != want {
+		t.Errorf("plain output =\n%q\nwant\n%q", got, want)
+	}
+}
+
+func TestPlainFatalWritesError(t *testing.T) {
+	var buf bytes.Buffer
+	r := NewPlain(&buf)
+	r.StartPhase("rules", "Resolving rules")
+	r.Fatal(errors.New("boom"))
+	if !strings.Contains(buf.String(), "boom") {
+		t.Errorf("Fatal output %q missing error", buf.String())
+	}
 }
