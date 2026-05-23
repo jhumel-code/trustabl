@@ -17,6 +17,7 @@ import (
 	"github.com/trustabl/trustabl/internal/analysis"
 	"github.com/trustabl/trustabl/internal/ingestion"
 	"github.com/trustabl/trustabl/internal/models"
+	"github.com/trustabl/trustabl/internal/progress"
 	"github.com/trustabl/trustabl/internal/rules"
 )
 
@@ -32,6 +33,9 @@ type Config struct {
 	RulesSource    string
 	RulesVersion   string
 	RulesFromCache bool
+
+	// Progress receives real-time phase events. Nil means no progress output.
+	Progress progress.Reporter
 }
 
 // Run executes the full pipeline. The returned ScanResult is what gets
@@ -48,15 +52,25 @@ func Run(cfg Config) (models.ScanResult, error) {
 		repoLabel = src.RootPath
 	}
 
-	// Step 1: recon (cheap, no AST)
-	profile, err := ingestion.Recon(src)
-	if err != nil {
-		return models.ScanResult{}, fmt.Errorf("recon: %w", err)
+	rep := cfg.Progress
+	if rep == nil {
+		rep = progress.NewNop()
 	}
 
+	// Step 1: recon (cheap, no AST)
+	rep.StartPhase("recon", "Recon")
+	profile, err := ingestion.Recon(src)
+	if err != nil {
+		rep.Fatal(err)
+		return models.ScanResult{}, fmt.Errorf("recon: %w", err)
+	}
+	rep.EndPhase(fmt.Sprintf("%d files · %s", len(profile.Manifest.PythonFiles), languagesLabel(profile.Languages)))
+
 	// Step 2: inventory (per-language AST; Python only for now)
+	rep.StartPhase("inventory", "Inventory")
 	tools, parsed, err := analysis.DiscoverTools(profile.Manifest)
 	if err != nil {
+		rep.Fatal(err)
 		return models.ScanResult{}, fmt.Errorf("discover: %w", err)
 	}
 	agents := analysis.DiscoverAgents(parsed)
@@ -75,6 +89,7 @@ func Run(cfg Config) (models.ScanResult, error) {
 	analysis.ResolveEdges(&inventory, parsed)
 	inventory.Subagents = analysis.DiscoverSubagents(profile.Manifest)
 	inventory.ClaudeSettings = analysis.DiscoverClaudeSettings(profile.Manifest)
+	rep.EndPhase(fmt.Sprintf("%d tools · %d agents", len(tools), len(agents)))
 
 	// Step 3: policy selection
 	if cfg.RulesFS == nil {
@@ -92,8 +107,10 @@ func Run(cfg Config) (models.ScanResult, error) {
 		EmitCoverageMETA(registry.ApplicableCategories(profile, inventory), inventory)...)
 
 	// Step 4: analysis
+	rep.StartPhase("analysis", "Analysis")
 	ruleFindings := registry.Run(profile, inventory, parsed)
 	findings := append(metaFindings, ruleFindings...)
+	rep.EndPhase(fmt.Sprintf("%d findings", len(findings)))
 
 	// Step 5: scoring
 	readiness, overall := analysis.Score(tools, findings)
@@ -157,6 +174,18 @@ func computeUsesDefaultTracing(parsed []analysis.ParsedFile) bool {
 		}
 	}
 	return true
+}
+
+// languagesLabel renders a stable, comma-separated language list for progress.
+func languagesLabel(langs []models.Language) string {
+	if len(langs) == 0 {
+		return "no known languages"
+	}
+	parts := make([]string, len(langs))
+	for i, l := range langs {
+		parts[i] = string(l)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // scanID is derived from the repo label, the sorted set of Python files, and
