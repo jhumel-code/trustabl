@@ -67,6 +67,7 @@ func SelectAndEmitMETA(profile models.RepoProfile, inv models.RepoInventory) []m
 			RuleID:   "META-002",
 			Severity: models.SeverityInfo,
 			Title:    "Declared SDK dependency has no observed code use",
+			FilePath: dep.Source,
 			Explanation: fmt.Sprintf(
 				"The project declares %q as a dependency (in %s) but Trustabl found no "+
 					"code that uses it. The corresponding rules will not fire until an "+
