@@ -27,6 +27,37 @@ func TestPackExists(t *testing.T) {
 	}
 }
 
+func TestPruneCache_KeepsOnlyCurrent(t *testing.T) {
+	cache := t.TempDir()
+	for _, sha := range []string{"aaa", "bbb", "ccc"} {
+		if err := os.MkdirAll(packDir(cache, sha), 0o755); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// A stale temp-clone dir (interrupted clone) should also be cleared.
+	if err := os.MkdirAll(filepath.Join(cache, ".tmp-clone-123"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeCurrent(cache, "bbb"); err != nil {
+		t.Fatal(err)
+	}
+
+	pruneCache(cache, "bbb")
+
+	if !packExists(cache, "bbb") {
+		t.Error("kept SHA bbb was removed")
+	}
+	if packExists(cache, "aaa") || packExists(cache, "ccc") {
+		t.Error("stale pack dirs not pruned")
+	}
+	if _, err := os.Stat(filepath.Join(cache, ".tmp-clone-123")); !os.IsNotExist(err) {
+		t.Error("stale temp-clone dir not pruned")
+	}
+	if sha, ok := readCurrent(cache); !ok || sha != "bbb" {
+		t.Errorf("current pointer damaged: got (%q, %v), want (bbb, true)", sha, ok)
+	}
+}
+
 func TestCurrentPointer_RoundTrip(t *testing.T) {
 	cache := t.TempDir()
 	if _, ok := readCurrent(cache); ok {

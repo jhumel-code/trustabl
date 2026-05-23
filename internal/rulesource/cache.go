@@ -37,6 +37,24 @@ func readCurrent(cacheDir string) (sha string, ok bool) {
 	return s, true
 }
 
+// pruneCache removes every entry in cacheDir except the kept SHA's pack
+// directory and the `current` pointer file. This bounds the cache to a single
+// pack (the active one) and also clears stale `.tmp-clone-*` directories left
+// by interrupted clones. Best-effort: a pack a concurrent scan still holds open
+// (e.g. a Windows file lock) simply fails to delete and is left for next time.
+func pruneCache(cacheDir, keep string) {
+	entries, err := os.ReadDir(cacheDir)
+	if err != nil {
+		return
+	}
+	for _, e := range entries {
+		if !e.IsDir() || e.Name() == keep {
+			continue // keep the active pack; the `current` file is not a dir
+		}
+		_ = os.RemoveAll(filepath.Join(cacheDir, e.Name()))
+	}
+}
+
 // writeCurrent records sha as the cache's current pointer. The write is
 // atomic — a temp file in the same directory followed by a rename — so an
 // interrupted write can never leave a truncated pointer that readCurrent would

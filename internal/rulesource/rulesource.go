@@ -110,6 +110,7 @@ func Resolve(cfg Config, supported int) (Resolved, error) {
 	if err := writeCurrent(cfg.CacheDir, sha); err != nil {
 		return Resolved{}, fmt.Errorf("record current rules pointer: %w", err)
 	}
+	pruneCache(cfg.CacheDir, sha)
 	return res, nil
 }
 
@@ -139,5 +140,6 @@ func Pull(cfg Config, supported int) (Resolved, error) {
 	if err := writeCurrent(cfg.CacheDir, sha); err != nil {
 		return Resolved{}, fmt.Errorf("record current rules pointer: %w", err)
 	}
+	pruneCache(cfg.CacheDir, sha)
 	return res, nil
 }
