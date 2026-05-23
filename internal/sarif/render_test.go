@@ -259,7 +259,7 @@ func TestRender_ShapesACompleteDocument(t *testing.T) {
 		},
 	}
 
-	out := Render(sr)
+	out := Render(sr, "0.0.0-test")
 	var log Log
 	if err := json.Unmarshal(out, &log); err != nil {
 		t.Fatalf("Render produced invalid JSON: %v", err)
@@ -305,6 +305,15 @@ func TestRender_ShapesACompleteDocument(t *testing.T) {
 	if len(run.Tool.Driver.Rules) != 2 {
 		t.Errorf("rules catalog len = %d, want 2 (OAI-005 + META-001)", len(run.Tool.Driver.Rules))
 	}
+	// The META-001 notification's descriptor.index must resolve to META-001 in
+	// the catalog. META-001 sorts before OAI-005, so it is at index 0.
+	if run.Tool.Driver.Rules[0].ID != "META-001" {
+		t.Errorf("rules[0].ID = %q, want META-001 (sorts first)", run.Tool.Driver.Rules[0].ID)
+	}
+	notif := run.Invocations[0].ToolExecutionNotifications[0]
+	if notif.Descriptor == nil || notif.Descriptor.Index != 0 {
+		t.Errorf("notification descriptor index = %v, want 0 (META-001)", notif.Descriptor)
+	}
 }
 
 func TestRender_RuleCatalogSortedAndIndexed(t *testing.T) {
@@ -318,7 +327,7 @@ func TestRender_RuleCatalogSortedAndIndexed(t *testing.T) {
 		},
 	}
 	var log Log
-	if err := json.Unmarshal(Render(sr), &log); err != nil {
+	if err := json.Unmarshal(Render(sr, "0.0.0-test"), &log); err != nil {
 		t.Fatal(err)
 	}
 	rules := log.Runs[0].Tool.Driver.Rules
@@ -344,7 +353,7 @@ func TestRender_RemoteRepoEmitsVCSProvenance(t *testing.T) {
 		},
 	}
 	var log Log
-	if err := json.Unmarshal(Render(sr), &log); err != nil {
+	if err := json.Unmarshal(Render(sr, "0.0.0-test"), &log); err != nil {
 		t.Fatal(err)
 	}
 	if len(log.Runs[0].VersionControlProvenance) != 1 {

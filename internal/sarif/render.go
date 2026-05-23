@@ -101,11 +101,10 @@ func scopeFromRuleID(id string) string {
 // vary per-finding once value-aware predicates land — the descriptor will then
 // reflect the rule's default and result.rank carries the per-finding value).
 func ruleFromFinding(f models.Finding) ReportingDescriptor {
-	return ReportingDescriptor{
+	rd := ReportingDescriptor{
 		ID:               f.RuleID,
 		ShortDescription: &Message{Text: f.Title},
 		FullDescription:  &Message{Text: f.Explanation},
-		Help:             &Message{Text: f.SuggestedFix},
 		DefaultConfiguration: &ReportingConfiguration{
 			Level: levelForSeverity(f.Severity),
 		},
@@ -115,6 +114,12 @@ func ruleFromFinding(f models.Finding) ReportingDescriptor {
 			"tags":              tagsForFinding(f),
 		},
 	}
+	// Omit help entirely when there's no fix text — an empty help.text is noise
+	// for SARIF viewers. Mirrors the guard on result.Fixes.
+	if f.SuggestedFix != "" {
+		rd.Help = &Message{Text: f.SuggestedFix}
+	}
+	return rd
 }
 
 // resultFromFinding builds a SARIF Result from a Finding. ruleIndex points at
@@ -208,26 +213,23 @@ func fingerprintFor(f models.Finding) string {
 	return hex.EncodeToString(h.Sum(nil))
 }
 
-// Version is what we report as the tool version in tool.driver.version. Kept
-// in sync with cmd/trustabl/main.go's `version` literal manually for now; if
-// the project adopts ldflags-based versioning later, source this from there.
-const Version = "0.1.0"
-
 // Render serializes a Trustabl ScanResult into a SARIF 2.1.0 JSON document
-// (pretty-printed, trailing newline). The mapping rules are locked in
-// .superpowers/specs/2026-05-24-sarif-output-design.md.
-func Render(sr models.ScanResult) []byte {
+// (pretty-printed, trailing newline). toolVersion is reported as
+// tool.driver.version/semanticVersion — the CLI passes its own version literal
+// so the SARIF document never disagrees with `trustabl version`. The mapping
+// rules are locked in .superpowers/specs/2026-05-24-sarif-output-design.md.
+func Render(sr models.ScanResult, toolVersion string) []byte {
 	log := Log{
 		Version: "2.1.0",
 		Schema:  "https://json.schemastore.org/sarif-2.1.0.json",
-		Runs:    []Run{buildRun(sr)},
+		Runs:    []Run{buildRun(sr, toolVersion)},
 	}
 	out, _ := json.MarshalIndent(log, "", "  ")
 	return append(out, '\n')
 }
 
 // buildRun assembles the single run that Trustabl emits.
-func buildRun(sr models.ScanResult) Run {
+func buildRun(sr models.ScanResult, toolVersion string) Run {
 	// Partition findings: META-001/004 → notifications; everything else → results.
 	var resultFindings []models.Finding
 	var notifyFindings []models.Finding
@@ -277,8 +279,8 @@ func buildRun(sr models.ScanResult) Run {
 			Name:            "trustabl",
 			FullName:        "Trustabl — static analyzer for agent reliability",
 			InformationURI:  "https://github.com/jhumel-code/trustabl",
-			Version:         Version,
-			SemanticVersion: Version,
+			Version:         toolVersion,
+			SemanticVersion: toolVersion,
 			Rules:           rules,
 			Properties: map[string]any{
 				"rules_source":     sr.RulesSource,

@@ -67,7 +67,7 @@ func fixtureResult() models.ScanResult {
 }
 
 func TestGoldenSARIF(t *testing.T) {
-	got := Render(fixtureResult())
+	got := Render(fixtureResult(), "0.0.0-test")
 	goldenPath := filepath.Join("testdata", "golden.sarif.json")
 
 	if *updateGolden {
@@ -92,7 +92,7 @@ func TestGoldenSARIF(t *testing.T) {
 }
 
 func TestStructuralInvariants(t *testing.T) {
-	out := Render(fixtureResult())
+	out := Render(fixtureResult(), "0.0.0-test")
 	var log Log
 	if err := json.Unmarshal(out, &log); err != nil {
 		t.Fatalf("invalid JSON: %v", err)

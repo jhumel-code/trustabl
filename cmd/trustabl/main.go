@@ -262,7 +262,7 @@ func emitJSON(result models.ScanResult) error {
 }
 
 func emitSARIF(result models.ScanResult) error {
-	_, err := os.Stdout.Write(sarif.Render(result))
+	_, err := os.Stdout.Write(sarif.Render(result, version))
 	return err
 }
 
