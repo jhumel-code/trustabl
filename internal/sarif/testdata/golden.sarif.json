@@ -1,0 +1,229 @@
+{
+  "version": "2.1.0",
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "runs": [
+    {
+      "tool": {
+        "driver": {
+          "name": "trustabl",
+          "fullName": "Trustabl — static analyzer for agent reliability",
+          "informationUri": "https://github.com/jhumel-code/trustabl",
+          "version": "0.1.0",
+          "semanticVersion": "0.1.0",
+          "rules": [
+            {
+              "id": "META-001",
+              "shortDescription": {
+                "text": "Unaudited SDK in use"
+              },
+              "fullDescription": {
+                "text": "This repo uses SDK \"google_adk\", which Trustabl does not currently audit."
+              },
+              "help": {
+                "text": ""
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "confidence": 1,
+                "security-severity": "0.5",
+                "tags": [
+                  "python"
+                ]
+              }
+            },
+            {
+              "id": "META-002",
+              "shortDescription": {
+                "text": "Declared SDK dependency has no observed code use"
+              },
+              "fullDescription": {
+                "text": "Dependency \"google-adk\" is declared in pyproject.toml but no code uses it."
+              },
+              "help": {
+                "text": ""
+              },
+              "defaultConfiguration": {
+                "level": "note"
+              },
+              "properties": {
+                "confidence": 1,
+                "security-severity": "0.5",
+                "tags": [
+                  "python"
+                ]
+              }
+            },
+            {
+              "id": "OAI-005",
+              "shortDescription": {
+                "text": "Network call has no timeout"
+              },
+              "fullDescription": {
+                "text": "An HTTP call without timeout can hang the agent run."
+              },
+              "help": {
+                "text": "Pass timeout=5 to the request."
+              },
+              "defaultConfiguration": {
+                "level": "error"
+              },
+              "properties": {
+                "confidence": 0.85,
+                "security-severity": "7.5",
+                "tags": [
+                  "openai_sdk",
+                  "tool",
+                  "python"
+                ]
+              }
+            },
+            {
+              "id": "OAI-201",
+              "shortDescription": {
+                "text": "OpenAI Agents SDK present but no custom tracing"
+              },
+              "fullDescription": {
+                "text": "Tracing runs with the default processor only."
+              },
+              "help": {
+                "text": ""
+              },
+              "defaultConfiguration": {
+                "level": "warning"
+              },
+              "properties": {
+                "confidence": 0.7,
+                "security-severity": "5.5",
+                "tags": [
+                  "repo",
+                  "python"
+                ]
+              }
+            }
+          ],
+          "properties": {
+            "rules_from_cache": false,
+            "rules_source": "https://github.com/jhumel-code/trustabl-rules",
+            "rules_version": "cb28dfbfixture"
+          }
+        }
+      },
+      "invocations": [
+        {
+          "executionSuccessful": true,
+          "toolExecutionNotifications": [
+            {
+              "level": "note",
+              "message": {
+                "text": "This repo uses SDK \"google_adk\", which Trustabl does not currently audit."
+              },
+              "descriptor": {
+                "index": 0
+              },
+              "properties": {
+                "rule_id": "META-001"
+              }
+            }
+          ]
+        }
+      ],
+      "results": [
+        {
+          "ruleId": "OAI-005",
+          "ruleIndex": 2,
+          "message": {
+            "text": "An HTTP call without timeout can hang the agent run."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "agents/web.py",
+                  "uriBaseId": "REPO_ROOT"
+                },
+                "region": {
+                  "startLine": 42
+                }
+              },
+              "logicalLocations": [
+                {
+                  "name": "fetch_url",
+                  "kind": "function"
+                }
+              ]
+            }
+          ],
+          "fixes": [
+            {
+              "description": {
+                "text": "Pass timeout=5 to the request."
+              }
+            }
+          ],
+          "rank": 85,
+          "partialFingerprints": {
+            "primaryLocationLineHash": "80ef6bbb4cfc3b2f7693a435688afc27b72afe9e4aa3b898154c6d751ca037a7"
+          },
+          "properties": {
+            "confidence": 0.85
+          }
+        },
+        {
+          "ruleId": "OAI-201",
+          "ruleIndex": 3,
+          "kind": "informational",
+          "message": {
+            "text": "Tracing runs with the default processor only."
+          },
+          "rank": 70,
+          "partialFingerprints": {
+            "primaryLocationLineHash": "909f2973bbb976bb4bca098a37428ad29f25c0b2587171b86430a13f1367e5d4"
+          },
+          "properties": {
+            "confidence": 0.7
+          }
+        },
+        {
+          "ruleId": "META-002",
+          "ruleIndex": 1,
+          "kind": "informational",
+          "message": {
+            "text": "Dependency \"google-adk\" is declared in pyproject.toml but no code uses it."
+          },
+          "locations": [
+            {
+              "physicalLocation": {
+                "artifactLocation": {
+                  "uri": "pyproject.toml",
+                  "uriBaseId": "REPO_ROOT"
+                }
+              }
+            }
+          ],
+          "rank": 100,
+          "partialFingerprints": {
+            "primaryLocationLineHash": "336680924c44beda699cbd3310e79ea2ccb0fdff9351658cfe80918592a3c194"
+          },
+          "properties": {
+            "confidence": 1
+          }
+        }
+      ],
+      "automationDetails": {
+        "id": "scan_fixture0001"
+      },
+      "originalUriBaseIds": {
+        "REPO_ROOT": {
+          "uri": "file:///tmp/trustabl-clone-fixture/"
+        }
+      },
+      "versionControlProvenance": [
+        {
+          "repositoryUri": "https://github.com/example/agent-repo"
+        }
+      ]
+    }
+  ]
+}

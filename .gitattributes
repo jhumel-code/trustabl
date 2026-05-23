@@ -6,3 +6,4 @@
 testdata/rules-fixture/**/*.yaml text eol=lf
 testdata/rules-fixture/**/*.md   text eol=lf
 testdata/rules-fixture/manifest.yaml text eol=lf
+internal/sarif/testdata/*.sarif.json text eol=lf
