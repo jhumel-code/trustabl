@@ -2,6 +2,7 @@ package progress
 
 import (
 	"fmt"
+	"io"
 
 	"github.com/charmbracelet/bubbles/progress"
 	"github.com/charmbracelet/bubbles/spinner"
@@ -83,3 +84,28 @@ func (m model) View() string {
 	}
 	return fmt.Sprintf("%s %s\n", m.spinner.View(), m.label)
 }
+
+// TTYReporter forwards Reporter calls to a running bubbletea program. It
+// implements Reporter and adds Run/Done to drive the render loop.
+type TTYReporter struct{ p *tea.Program }
+
+// NewTTY builds a TTYReporter rendering to w (stderr). The caller runs the loop
+// with Run() on the main goroutine while emitting events from another goroutine.
+func NewTTY(w io.Writer) *TTYReporter {
+	p := tea.NewProgram(newModel(), tea.WithOutput(w))
+	return &TTYReporter{p: p}
+}
+
+// Run renders until Done/Fatal triggers quit. Call on the main goroutine.
+func (r *TTYReporter) Run() error { _, err := r.p.Run(); return err }
+
+// Done signals the render loop to stop (call after the job finishes).
+func (r *TTYReporter) Done() { r.p.Send(doneMsg{}) }
+
+func (r *TTYReporter) StartPhase(key, label string) { r.p.Send(startPhaseMsg{key, label}) }
+func (r *TTYReporter) SetTotal(n int)               { r.p.Send(setTotalMsg{n}) }
+func (r *TTYReporter) Advance(detail string)        { r.p.Send(advanceMsg{detail}) }
+func (r *TTYReporter) EndPhase(summary string)      { r.p.Send(endPhaseMsg{summary}) }
+func (r *TTYReporter) Fatal(err error)              { r.p.Send(fatalMsg{err}) }
+
+var _ Reporter = (*TTYReporter)(nil)
