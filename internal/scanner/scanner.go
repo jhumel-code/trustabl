@@ -111,7 +111,10 @@ func Run(cfg Config) (models.ScanResult, error) {
 
 	// Step 4: analysis
 	rep.StartPhase("analysis", "Analysis")
-	ruleFindings := registry.Run(profile, inventory, parsed)
+	rep.SetTotal(len(inventory.Tools) + len(inventory.Agents))
+	ruleFindings := registry.Run(profile, inventory, parsed, func(label string) {
+		rep.Advance(label)
+	})
 	findings := append(metaFindings, ruleFindings...)
 	rep.EndPhase(fmt.Sprintf("%d findings", len(findings)))
 

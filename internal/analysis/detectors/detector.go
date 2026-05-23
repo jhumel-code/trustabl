@@ -55,19 +55,31 @@ func New(tool []ToolDetector, agent []AgentDetector, repo []RepoDetector) *Regis
 
 // Run executes every applicable detector across tools, agents, and repo,
 // returning all findings sorted deterministically.
-func (r *Registry) Run(profile models.RepoProfile, inv models.RepoInventory, parsed []analysis.ParsedFile) []models.Finding {
+// onEntity, if non-nil, is called once per tool ("tool: <name>") and once
+// per agent ("agent: <name>") as the scan progresses. The final sort
+// guarantees output is identical regardless of the iteration order here.
+func (r *Registry) Run(profile models.RepoProfile, inv models.RepoInventory, parsed []analysis.ParsedFile, onEntity func(label string)) []models.Finding {
 	var out []models.Finding
-	for _, d := range r.tool {
-		for _, t := range inv.Tools {
+	// Entity-major: visit each tool once (ticking progress), running every
+	// applicable tool detector. Output order is normalized by the sort below,
+	// so this reordering does not change results.
+	for _, t := range inv.Tools {
+		if onEntity != nil {
+			onEntity("tool: " + t.Name)
+		}
+		pf := parsedFor(t.FilePath, parsed)
+		for _, d := range r.tool {
 			if !d.Applies(t) {
 				continue
 			}
-			pf := parsedFor(t.FilePath, parsed)
 			out = append(out, d.Detect(t, pf, inv)...)
 		}
 	}
-	for _, d := range r.agent {
-		for _, a := range inv.Agents {
+	for _, a := range inv.Agents {
+		if onEntity != nil {
+			onEntity("agent: " + a.Name)
+		}
+		for _, d := range r.agent {
 			if !d.Applies(a) {
 				continue
 			}
