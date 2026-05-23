@@ -1,6 +1,9 @@
 package sarif
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+
 	"github.com/trustabl/trustabl/internal/models"
 )
 
@@ -109,4 +112,95 @@ func ruleFromFinding(f models.Finding) ReportingDescriptor {
 			"tags":              tagsForFinding(f),
 		},
 	}
+}
+
+// resultFromFinding builds a SARIF Result from a Finding. ruleIndex points at
+// the entry for f.RuleID in tool.driver.rules (or nil if unknown — defensive,
+// shouldn't happen in normal flow).
+func resultFromFinding(f models.Finding, ruleIndex *int) Result {
+	r := Result{
+		RuleID:    f.RuleID,
+		RuleIndex: ruleIndex,
+		Message:   Message{Text: f.Explanation},
+		Properties: map[string]any{
+			"confidence": f.Confidence,
+		},
+		PartialFingerprints: map[string]string{
+			"primaryLocationLineHash": fingerprintFor(f),
+		},
+	}
+	rank := f.Confidence * 100
+	r.Rank = &rank
+
+	if f.SuggestedFix != "" {
+		r.Fixes = []Fix{{Description: Message{Text: f.SuggestedFix}}}
+	}
+
+	// Locations: physical when we have a file; logical when we have a tool name.
+	if f.FilePath != "" {
+		phys := &PhysicalLocation{
+			ArtifactLocation: ArtifactLocation{
+				URI:       f.FilePath,
+				URIBaseID: "REPO_ROOT",
+			},
+		}
+		if f.Line > 0 {
+			phys.Region = &Region{StartLine: f.Line}
+		}
+		loc := Location{PhysicalLocation: phys}
+		if f.ToolName != "" {
+			loc.LogicalLocations = []LogicalLocation{{Name: f.ToolName, Kind: "function"}}
+		}
+		r.Locations = []Location{loc}
+	}
+
+	// Kind: "informational" for META results and repo-scoped rule findings
+	// (rule findings without a file location). Default (fail) for regular
+	// located rule findings — emit empty so SARIF's default applies.
+	if isInformational(f) {
+		r.Kind = "informational"
+	}
+
+	return r
+}
+
+// isInformational returns true for findings that should carry SARIF
+// kind="informational". Covers all META results that reach this builder
+// (META-001/004 don't reach it — they're notifications) plus repo-scoped rule
+// findings (which findingFromRule emits with empty FilePath/Line).
+func isInformational(f models.Finding) bool {
+	if len(f.RuleID) >= 4 && f.RuleID[:4] == "META" {
+		return true
+	}
+	if f.FilePath == "" {
+		return true
+	}
+	return false
+}
+
+// notificationFromFinding builds a SARIF Notification for META-001 / META-004.
+// ruleIndex is the rule's position in tool.driver.rules; the notification
+// references it via descriptor.index for consumer-side rule lookup.
+func notificationFromFinding(f models.Finding, ruleIndex int) Notification {
+	return Notification{
+		Level:      "note",
+		Message:    Message{Text: f.Explanation},
+		Descriptor: &ReportingDescriptorReference{Index: ruleIndex},
+		Properties: map[string]any{
+			"rule_id": f.RuleID,
+		},
+	}
+}
+
+// fingerprintFor returns a stable hex SHA-256 of (RuleID|FilePath|ToolName).
+// Identifies the same logical finding across scans even when line numbers
+// shift, which is what GitHub Code Scanning uses to deduplicate alerts.
+func fingerprintFor(f models.Finding) string {
+	h := sha256.New()
+	h.Write([]byte(f.RuleID))
+	h.Write([]byte{'|'})
+	h.Write([]byte(f.FilePath))
+	h.Write([]byte{'|'})
+	h.Write([]byte(f.ToolName))
+	return hex.EncodeToString(h.Sum(nil))
 }
