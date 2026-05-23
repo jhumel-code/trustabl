@@ -33,10 +33,14 @@ field on a rule is REQUIRED for new rules; legacy rules without it default
 to `tool` (the historical behavior).
 
 - **`tool`** — fires per tool definition.
-  - **Input**: a `ToolDef` (a `@function_tool`-decorated function, a
-    `FunctionTool(...)` constructor call, a hosted-tool instance, a
-    `@server.tool` MCP registration, or a bare shell-invoking function)
-    plus its parsed file.
+  - **Input**: a `ToolDef` — discovery produces these from a
+    `@function_tool`-decorated function (`openai_tool`), a `@tool` /
+    `@claude_tool` / `claude_agent_sdk` function (`claude_sdk_tool`), a
+    `@server.tool` / `@mcp.tool` / `.register_tool` MCP registration
+    (`mcp_tool`), or a bare shell-invoking function (`shell_invocation`) —
+    plus its parsed file. (Hosted-tool instances like `WebSearchTool()` are
+    captured as `HostedToolDef`, not `ToolDef`, and are agent-scope edge data,
+    not tool-scope inputs.)
   - **Examples**: missing docstring, network call without timeout, untyped
     params, unnormalized path in `open()`.
 
@@ -50,9 +54,10 @@ to `tool` (the historical behavior).
     filesystem-touching tools, handoff to subagent that has fewer
     guardrails than the parent.
 
-- **`repo`** — fires once per scan against the manifest.
-  - **Input**: the `ScanManifest` (file inventory, dependency flags,
-    discovered components).
+- **`repo`** — fires once per scan against the whole repo.
+  - **Input**: `RepoProfile` + `RepoInventory` (languages, declared SDK
+    deps, the `ScanManifest` file inventory and discovered components, plus
+    the discovered tools/agents and `SDKsDetected`).
   - **Examples**: project-wide tracing config has no custom processor;
     no `SandboxAgent` anywhere in a project that ships FS-touching tools.
 
@@ -89,8 +94,8 @@ language. Produces a `RepoProfile`:
 - Languages present (by file extension).
 - **SDK dependencies declared** — by text scan of `pyproject.toml` /
   `requirements.txt` / `Pipfile` / `poetry.lock` / `package.json` /
-  `go.mod`. Each declaration becomes a typed `SDKDep{Name, Manifest,
-  Confidence}`.
+  `go.mod`. Each declaration becomes a typed `SDKDep{Name, Source,
+  Confidence}` (`Source` is the manifest file the declaration came from).
 - File inventory (the existing `ScanManifest` work).
 - Component discovery (MCP configs, hook scripts, CLAUDE.md, sandbox
   policies, etc.).

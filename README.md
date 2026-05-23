@@ -22,10 +22,11 @@ is classified into exactly one of three scopes, and each scope receives a
 different typed input:
 
 - **`tool`** — fires once per tool definition. Input: a `ToolDef` (a
-  `@function_tool` / `@tool` function, a hosted-tool instance, an
-  `@server.tool` MCP registration, or a bare shell-invoking function) plus its
-  parsed file. Catches a missing docstring, an HTTP call with no timeout,
-  untyped parameters, or an unnormalized path flowing into `open()`.
+  `@function_tool` / `@tool` function, an `@server.tool` MCP registration, or a
+  bare shell-invoking function) plus its parsed file. Catches a missing
+  docstring, an HTTP call with no timeout, untyped parameters, or an
+  unnormalized path flowing into `open()`. (Hosted tools like `WebSearchTool()`
+  are agent-scope edge data, captured as `HostedToolDef`, not `ToolDef`.)
 - **`agent`** — fires once per agent declaration. Input: an `AgentDef` — a
   single `Agent(...)` / `SandboxAgent(...)` / `AgentDefinition(...)` call with
   every constructor kwarg captured and its edges to tools, handoffs, and

@@ -1,4 +1,11 @@
-# Schema version this rule pack targets. The engine (internal/rules.
-# SupportedSchemaVersion) refuses a pack whose schema_version exceeds what it
-# can evaluate. Bump in lockstep when adding a predicate/schema field.
+# Trustabl rules pack manifest.
+#
+# schema_version is the rule-schema contract this pack targets. The Trustabl
+# engine (internal/rules.SupportedSchemaVersion) refuses a pack whose
+# schema_version exceeds what it can evaluate, so a newer pack never silently
+# misloads against an older binary. Bump this in lockstep with any engine
+# change that adds a predicate or schema field.
+#
+# This file is metadata, not a rule: the engine's loader skips manifest.yaml
+# when walking the pack for policy files.
 schema_version: 1

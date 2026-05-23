@@ -770,9 +770,9 @@ rules:
 
 ### §5.1 META findings (engine-emitted, not YAML-driven)
 
-The policy-selection step emits up to three engine-level findings before any rule runs. These
-are not backed by YAML policy files; they come from `SelectAndEmitMETA` in the
-scanner.
+The policy-selection step emits up to four engine-level META findings before any rule runs. These
+are not backed by YAML policy files: META-001..003 come from `SelectAndEmitMETA`
+and META-004 from `EmitCoverageMETA`, both in the scanner.
 
 | ID       | Trigger                                                    | Severity | Intent                                               |
 | -------- | ---------------------------------------------------------- | -------- | ---------------------------------------------------- |
