@@ -62,8 +62,9 @@ build is what makes policy selection *data-driven* rather than statically
 configured.
 
 The binary ships with **no embedded rules**. Before the pipeline runs, Trustabl
-resolves its detection rules from a separate git repository — fetching the
-latest, caching the clone locally, and falling back to the cache when the
+resolves its detection rules from a separate git repository
+([`trustabl-rules`](https://github.com/jhumel-code/trustabl-rules)) — fetching
+the latest, caching the clone locally, and falling back to the cache when the
 network is unreachable. This decouples rule updates from binary releases: rules
 can be added or changed without rebuilding the scanner. The resolved rules
 commit is recorded in the result and folded into the `ScanID`, so a scan is

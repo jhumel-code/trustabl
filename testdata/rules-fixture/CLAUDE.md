@@ -1,10 +1,13 @@
 # Instructions for Claude — detection policies
 
-These instructions apply to any work on the detection rule packs. The packs
-live in the external `trustabl-rules` repository; `testdata/rules-fixture/`
-(this directory) is the Phase-1 interim copy used by the test suite. The `../`
-relative links below refer to the engine's `internal/rules/` package — from
-this fixture location that is `../../internal/rules/`.
+These instructions apply to any work on the detection rule packs. Production
+rules live in the external `trustabl-rules` repository
+(`https://github.com/jhumel-code/trustabl-rules`); `testdata/rules-fixture/`
+(this directory) is an in-engine **test mirror** of those packs, and **must be
+kept in sync with the live repo** — see the "Two-repo rule model" section in
+the top-level [`CLAUDE.md`](../../CLAUDE.md) for the full change workflow. The
+`../` relative links below refer to the engine's `internal/rules/` package —
+from this fixture location that is `../../internal/rules/`.
 
 ## Required reading order before editing
 

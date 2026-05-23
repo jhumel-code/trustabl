@@ -3,9 +3,12 @@
 This file captures durable architectural commitments that span the whole
 codebase. Per-area conventions live in nested CLAUDE.md files (see
 [`testdata/rules-fixture/CLAUDE.md`](testdata/rules-fixture/CLAUDE.md)
-for rule authoring — the rule packs themselves live in the external
-`trustabl-rules` repository; `testdata/rules-fixture/` is the Phase-1
-interim copy used by tests).
+for rule authoring). The detection rule packs do **not** live in this repo:
+they live in the external **`trustabl-rules`** repository
+(`https://github.com/jhumel-code/trustabl-rules`), which the engine pulls at
+scan time. `testdata/rules-fixture/` is an in-engine **test mirror** of those
+packs — see [Two-repo rule model](#two-repo-rule-model-rules-vs-engine) below,
+which is required reading before touching any rule.
 
 For the current implementation, see [`ARCHITECTURE.md`](ARCHITECTURE.md).
 This file is for principles; ARCHITECTURE.md is for facts.
@@ -66,8 +69,10 @@ steps build is what makes policy selection data-driven rather than
 statically configured.
 
 Before the pipeline runs, the CLI resolves detection rules from the
-external `trustabl-rules` git repository (the engine embeds none — see
-`internal/rulesource/`) and hands them to `scanner.Run` as an `fs.FS`. The
+external `trustabl-rules` git repository (`rulesource.DefaultRepoURL`,
+currently `https://github.com/jhumel-code/trustabl-rules`; the engine embeds
+none — see `internal/rulesource/`) and hands them to `scanner.Run` as an
+`fs.FS`. The
 resolution path fetches the configured ref, caches the clone under
 `os.UserCacheDir()/trustabl/rules/<sha>/`, falls back to the cache when the
 network is unreachable, and gates the pack's `manifest.yaml`
@@ -205,6 +210,59 @@ This holds at all three scopes:
 When a repo declares agents from multiple SDKs side by side, each agent
 is checked against the rules for the SDK that declared it. No
 cross-SDK casting.
+
+## Two-repo rule model (rules vs engine)
+
+Trustabl is split across **two repositories**. Internalize this before
+touching rules — getting it wrong silently ships untested rules or
+test-passes rules users never receive.
+
+- **Engine repo** (this one, `github.com/trustabl/trustabl`): the scanner
+  binary. Owns discovery, the rule **schema** (`internal/rules/schema.go` +
+  `schema.yaml`), predicates, the evaluator, the loader, scoring, and the
+  per-rule test harness. Ships with **no rules embedded**.
+- **Rules repo** (`https://github.com/jhumel-code/trustabl-rules`, set as
+  `rulesource.DefaultRepoURL`): the `.yaml` rule packs + `manifest.yaml`.
+  This is what `trustabl scan` clones and runs at scan time. It is the
+  **production source of rules**.
+
+Inside the engine repo, **`testdata/rules-fixture/`** is a copy of the rules
+repo's packs, injected via `os.DirFS` so `go test` can validate rules without
+network access. It is the **test mirror**, not the source of truth for what
+users get — production pulls the live rules repo, not the fixture.
+
+### The sync obligation
+
+Because the fixture and the live rules repo are two copies, **they drift unless
+deliberately kept in sync.** A rule that exists only in the fixture is tested
+but never shipped; a rule that exists only in the rules repo ships but is
+untested (the engine's `TestPolicyRules_AllRulesCovered` guard only sees the
+fixture). Both are defects.
+
+When changing a rule (add / remove / edit severity, confidence, match, text):
+
+1. Make the change in the **rules repo** (`../trustabl-rules/`) — that is what
+   users pull.
+2. Mirror the identical change into **`testdata/rules-fixture/`** in this repo.
+3. Add/update the rule's fire + silent cases in
+   `internal/rules/policies_test.go` (the `TestPolicyRules_AllRulesCovered`
+   guard fails the build if a fixture rule has no case).
+4. `go test ./...` here must pass.
+5. Commit and push the rules repo (the user pushes engine commits manually;
+   confirm before pushing either).
+
+The rule-authoring contract (required fields, ID conventions, per-scope
+`applies_to` values, framing discipline) lives in
+[`testdata/rules-fixture/CLAUDE.md`](testdata/rules-fixture/CLAUDE.md) and the
+mirror copy in the rules repo. Schema changes (a new predicate or match field)
+are **engine-repo** changes (schema.go + predicates.go + evaluator.go +
+schema.yaml in one commit) and require bumping `manifest.yaml`'s
+`schema_version` in both the fixture and the rules repo.
+
+> **Future direction (not yet done):** the duplication between the fixture and
+> the live rules repo is a known cost. The intended end state points the test
+> harness directly at a vendored/submoduled rules checkout so there is one
+> source of truth. Until that lands, the manual sync above is the contract.
 
 ## Doc precedence
 

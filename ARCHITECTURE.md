@@ -60,10 +60,14 @@ Adding a new tool-discovery language requires:
 
 Before the pipeline runs, `cmd/trustabl` resolves the detection rules. The
 binary embeds none; `rulesource.Resolve` fetches them from the rules git
-repository (`DefaultRepoURL`, overridable with `--rules-repo` /
-`TRUSTABL_RULES_REPO`) via go-git and caches the clone under
+repository (`DefaultRepoURL`, currently
+`https://github.com/jhumel-code/trustabl-rules`; overridable with
+`--rules-repo` / `TRUSTABL_RULES_REPO`) via go-git and caches the clone under
 `os.UserCacheDir()/trustabl/rules/<sha>/`, with a `current` pointer file
-naming the active commit.
+naming the active commit. The clone lands via a temp dir + atomic rename, and
+the pack is named by the actually-cloned HEAD commit, so an interrupted clone
+never leaves a partial pack and the recorded SHA always matches the content
+(see `internal/rulesource/git.go`).
 
 Resolution order:
 
@@ -690,9 +694,12 @@ internal/
 └── inference/                   BYOK inference router (interface + cache).
 
 The YAML rule packs themselves live in the **separate** `trustabl-rules`
-repository, not in this tree. For tests, an interim copy lives under
-`testdata/rules-fixture/` (with a `manifest.yaml` declaring `schema_version`)
-and is injected via `os.DirFS`.
+repository (`https://github.com/jhumel-code/trustabl-rules`), not in this
+tree — that is what `trustabl scan` pulls and runs. `testdata/rules-fixture/`
+(with a `manifest.yaml` declaring `schema_version`) is an in-engine **test
+mirror** of those packs, injected via `os.DirFS` so `go test` validates rules
+without network access. The mirror and the live repo must be kept in sync — see
+the "Two-repo rule model" section in [`CLAUDE.md`](CLAUDE.md).
 ```
 
 ### `internal/analysis/heuristics.go` — the shared-helper boundary

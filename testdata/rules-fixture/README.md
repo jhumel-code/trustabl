@@ -2,13 +2,16 @@
 
 Every `.yaml` file under this directory defines one or more detection rules.
 
-> **Interim location.** These rule packs are **not** embedded in the binary.
-> They live in the external `trustabl-rules` git repository and are resolved
-> at scan time (see `internal/rulesource/`). This `testdata/rules-fixture/`
-> directory is the Phase-1 interim copy used by the test suite, injected via
-> `os.DirFS`; it will move out to `trustabl-rules` in Phase 2. The `../`
-> relative links below refer to the engine's `internal/rules/` package — from
-> this fixture location that is `../../internal/rules/`.
+> **Test mirror — not the production source.** These rule packs are **not**
+> embedded in the binary. Production rules live in the external
+> `trustabl-rules` git repository (`https://github.com/jhumel-code/trustabl-rules`)
+> and are resolved at scan time (see `internal/rulesource/`). This
+> `testdata/rules-fixture/` directory is an **in-engine copy** of those packs,
+> injected via `os.DirFS` so `go test` can validate rules offline. **It must be
+> kept in sync with the live rules repo** — see the "Two-repo rule model"
+> section in the top-level [`CLAUDE.md`](../../CLAUDE.md). The `../` relative
+> links below refer to the engine's `internal/rules/` package — from this
+> fixture location that is `../../internal/rules/`.
 
 The loader walks this tree at scan time (skipping the top-level
 `manifest.yaml`, which declares the pack's `schema_version`).

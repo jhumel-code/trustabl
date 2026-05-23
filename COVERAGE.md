@@ -7,11 +7,12 @@ at-a-glance reference; `ARCHITECTURE.md` has the implementation detail.
 _Last reviewed: 2026-05-23 (HEAD `e1f5ecd`)._
 
 > **Note:** Detection rules are not shipped in the binary. They live in the
-> separate `trustabl-rules` git repository and are resolved at scan time
-> (cached locally, with offline fallback). The rule IDs and packs listed below
-> describe the rules Trustabl currently ships in that repository; the SDK and
-> language *recognition* surface (scanning + AST discovery) is what the engine
-> binary provides.
+> separate `trustabl-rules` git repository
+> (`https://github.com/jhumel-code/trustabl-rules`) and are resolved at scan
+> time (cached locally, with offline fallback). The rule IDs and packs listed
+> below describe the rules Trustabl currently ships in that repository; the SDK
+> and language *recognition* surface (scanning + AST discovery) is what the
+> engine binary provides.
 
 ## Coverage matrix
 
