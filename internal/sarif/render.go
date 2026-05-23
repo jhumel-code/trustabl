@@ -3,6 +3,9 @@ package sarif
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
+	"sort"
+	"strings"
 
 	"github.com/trustabl/trustabl/internal/models"
 )
@@ -203,4 +206,117 @@ func fingerprintFor(f models.Finding) string {
 	h.Write([]byte{'|'})
 	h.Write([]byte(f.ToolName))
 	return hex.EncodeToString(h.Sum(nil))
+}
+
+// Version is what we report as the tool version in tool.driver.version. Kept
+// in sync with cmd/trustabl/main.go's `version` literal manually for now; if
+// the project adopts ldflags-based versioning later, source this from there.
+const Version = "0.1.0"
+
+// Render serializes a Trustabl ScanResult into a SARIF 2.1.0 JSON document
+// (pretty-printed, trailing newline). The mapping rules are locked in
+// .superpowers/specs/2026-05-24-sarif-output-design.md.
+func Render(sr models.ScanResult) []byte {
+	log := Log{
+		Version: "2.1.0",
+		Schema:  "https://json.schemastore.org/sarif-2.1.0.json",
+		Runs:    []Run{buildRun(sr)},
+	}
+	out, _ := json.MarshalIndent(log, "", "  ")
+	return append(out, '\n')
+}
+
+// buildRun assembles the single run that Trustabl emits.
+func buildRun(sr models.ScanResult) Run {
+	// Partition findings: META-001/004 → notifications; everything else → results.
+	var resultFindings []models.Finding
+	var notifyFindings []models.Finding
+	for _, f := range sr.Findings {
+		if f.RuleID == "META-001" || f.RuleID == "META-004" {
+			notifyFindings = append(notifyFindings, f)
+		} else {
+			resultFindings = append(resultFindings, f)
+		}
+	}
+
+	// Build the referenced rule catalog from the first Finding seen for each
+	// rule. Sort by ID for determinism.
+	firstByRule := map[string]models.Finding{}
+	for _, f := range sr.Findings {
+		if _, ok := firstByRule[f.RuleID]; !ok {
+			firstByRule[f.RuleID] = f
+		}
+	}
+	ruleIDs := make([]string, 0, len(firstByRule))
+	for id := range firstByRule {
+		ruleIDs = append(ruleIDs, id)
+	}
+	sort.Strings(ruleIDs)
+	rules := make([]ReportingDescriptor, 0, len(ruleIDs))
+	indexByID := map[string]int{}
+	for i, id := range ruleIDs {
+		rules = append(rules, ruleFromFinding(firstByRule[id]))
+		indexByID[id] = i
+	}
+
+	// Results.
+	results := make([]Result, 0, len(resultFindings))
+	for _, f := range resultFindings {
+		idx := indexByID[f.RuleID]
+		results = append(results, resultFromFinding(f, &idx))
+	}
+
+	// Notifications.
+	notifications := make([]Notification, 0, len(notifyFindings))
+	for _, f := range notifyFindings {
+		notifications = append(notifications, notificationFromFinding(f, indexByID[f.RuleID]))
+	}
+
+	run := Run{
+		Tool: Tool{Driver: ToolComponent{
+			Name:            "trustabl",
+			FullName:        "Trustabl — static analyzer for agent reliability",
+			InformationURI:  "https://github.com/jhumel-code/trustabl",
+			Version:         Version,
+			SemanticVersion: Version,
+			Rules:           rules,
+			Properties: map[string]any{
+				"rules_source":     sr.RulesSource,
+				"rules_version":    sr.RulesVersion,
+				"rules_from_cache": sr.RulesFromCache,
+			},
+		}},
+		AutomationDetails: &AutomationDetails{ID: sr.ScanID},
+		Invocations: []Invocation{{
+			ExecutionSuccessful:        true,
+			ToolExecutionNotifications: notifications,
+		}},
+		Results: results,
+	}
+	if sr.Manifest.RepoRoot != "" {
+		run.OriginalUriBaseIds = map[string]ArtifactLocation{
+			"REPO_ROOT": {URI: repoRootURI(sr.Manifest.RepoRoot)},
+		}
+	}
+	if sr.Manifest.IsRemote && sr.Manifest.RemoteURL != "" {
+		run.VersionControlProvenance = []VersionControlProvenance{
+			{RepositoryURI: sr.Manifest.RemoteURL},
+		}
+	}
+	return run
+}
+
+// repoRootURI normalizes the repo root into a file:// URI ending with a slash,
+// suitable for use as a SARIF uriBaseId base. The trailing slash matters for
+// SARIF's resolution rules (uriBase + relative uri = full uri).
+func repoRootURI(root string) string {
+	root = strings.ReplaceAll(root, "\\", "/")
+	if !strings.HasSuffix(root, "/") {
+		root += "/"
+	}
+	// Treat absolute-looking roots as file URIs; otherwise leave as-is.
+	if len(root) > 1 && (root[0] == '/' || (len(root) > 2 && root[1] == ':')) {
+		return "file:///" + strings.TrimPrefix(root, "/")
+	}
+	return root
 }

@@ -1,6 +1,8 @@
 package sarif
 
 import (
+	"encoding/json"
+	"strings"
 	"testing"
 
 	"github.com/trustabl/trustabl/internal/models"
@@ -226,5 +228,129 @@ func TestNotificationFromFinding(t *testing.T) {
 	}
 	if n.Properties["rule_id"] != "META-001" {
 		t.Errorf("properties.rule_id = %v", n.Properties["rule_id"])
+	}
+}
+
+func TestRender_ShapesACompleteDocument(t *testing.T) {
+	sr := models.ScanResult{
+		ScanID:         "scan_abc123",
+		Repo:           "C:/work/myrepo",
+		Manifest:       models.ScanManifest{RepoRoot: "C:/work/myrepo", IsRemote: false},
+		RulesSource:    "https://github.com/jhumel-code/trustabl-rules",
+		RulesVersion:   "cb28dfb0",
+		RulesFromCache: false,
+		Findings: []models.Finding{
+			{
+				RuleID: "OAI-005", Category: models.CategoryOpenAISDK,
+				Severity: models.SeverityHigh,
+				ToolName: "fetch_url", FilePath: "agents/web.py", Line: 42,
+				Title:        "Network call has no timeout",
+				Explanation:  "An HTTP call without timeout can hang.",
+				SuggestedFix: "Pass timeout=5.",
+				Confidence:   0.85,
+			},
+			{
+				RuleID:      "META-001",
+				Severity:    models.SeverityInfo,
+				Title:       "Unaudited SDK in use",
+				Explanation: "This repo uses SDK \"google_adk\", which Trustabl does not currently audit.",
+				Confidence:  1.0,
+			},
+		},
+	}
+
+	out := Render(sr)
+	var log Log
+	if err := json.Unmarshal(out, &log); err != nil {
+		t.Fatalf("Render produced invalid JSON: %v", err)
+	}
+
+	if log.Version != "2.1.0" {
+		t.Errorf("Version = %q", log.Version)
+	}
+	if !strings.HasSuffix(log.Schema, "sarif-2.1.0.json") {
+		t.Errorf("Schema = %q", log.Schema)
+	}
+	if len(log.Runs) != 1 {
+		t.Fatalf("Runs len = %d", len(log.Runs))
+	}
+	run := log.Runs[0]
+	if run.Tool.Driver.Name != "trustabl" {
+		t.Errorf("Driver.Name = %q", run.Tool.Driver.Name)
+	}
+	if run.Tool.Driver.Properties["rules_source"] != sr.RulesSource {
+		t.Errorf("rules_source prop = %v", run.Tool.Driver.Properties["rules_source"])
+	}
+	if run.Tool.Driver.Properties["rules_version"] != sr.RulesVersion {
+		t.Errorf("rules_version prop = %v", run.Tool.Driver.Properties["rules_version"])
+	}
+	if run.Tool.Driver.Properties["rules_from_cache"] != false {
+		t.Errorf("rules_from_cache prop = %v", run.Tool.Driver.Properties["rules_from_cache"])
+	}
+	if run.AutomationDetails == nil || run.AutomationDetails.ID != "scan_abc123" {
+		t.Errorf("AutomationDetails = %+v", run.AutomationDetails)
+	}
+	if base, ok := run.OriginalUriBaseIds["REPO_ROOT"]; !ok || base.URI == "" {
+		t.Errorf("REPO_ROOT base missing: %+v", run.OriginalUriBaseIds)
+	}
+	if len(run.Results) != 1 {
+		t.Errorf("Results len = %d, want 1 (regular finding)", len(run.Results))
+	}
+	if len(run.Invocations) != 1 {
+		t.Fatalf("Invocations len = %d", len(run.Invocations))
+	}
+	if len(run.Invocations[0].ToolExecutionNotifications) != 1 {
+		t.Errorf("notifications len = %d, want 1 (META-001)", len(run.Invocations[0].ToolExecutionNotifications))
+	}
+	if len(run.Tool.Driver.Rules) != 2 {
+		t.Errorf("rules catalog len = %d, want 2 (OAI-005 + META-001)", len(run.Tool.Driver.Rules))
+	}
+}
+
+func TestRender_RuleCatalogSortedAndIndexed(t *testing.T) {
+	// Determinism: rules sorted by ID; result.ruleIndex must point at the
+	// matching sorted entry.
+	sr := models.ScanResult{
+		Manifest: models.ScanManifest{RepoRoot: "."},
+		Findings: []models.Finding{
+			{RuleID: "OAI-005", FilePath: "a.py", Line: 1, Severity: models.SeverityHigh, Title: "B"},
+			{RuleID: "CSDK-001", FilePath: "a.py", Line: 1, Severity: models.SeverityLow, Title: "A"},
+		},
+	}
+	var log Log
+	if err := json.Unmarshal(Render(sr), &log); err != nil {
+		t.Fatal(err)
+	}
+	rules := log.Runs[0].Tool.Driver.Rules
+	if len(rules) != 2 || rules[0].ID != "CSDK-001" || rules[1].ID != "OAI-005" {
+		t.Fatalf("rules not sorted: %v", rules)
+	}
+	for _, r := range log.Runs[0].Results {
+		if r.RuleIndex == nil {
+			t.Fatalf("result %q has nil RuleIndex", r.RuleID)
+		}
+		if rules[*r.RuleIndex].ID != r.RuleID {
+			t.Errorf("RuleIndex for %q points at %q", r.RuleID, rules[*r.RuleIndex].ID)
+		}
+	}
+}
+
+func TestRender_RemoteRepoEmitsVCSProvenance(t *testing.T) {
+	sr := models.ScanResult{
+		Manifest: models.ScanManifest{
+			RepoRoot:  "/tmp/trustabl-clone-x",
+			IsRemote:  true,
+			RemoteURL: "https://github.com/org/repo",
+		},
+	}
+	var log Log
+	if err := json.Unmarshal(Render(sr), &log); err != nil {
+		t.Fatal(err)
+	}
+	if len(log.Runs[0].VersionControlProvenance) != 1 {
+		t.Fatalf("VCS provenance missing for remote scan")
+	}
+	if log.Runs[0].VersionControlProvenance[0].RepositoryURI != sr.Manifest.RemoteURL {
+		t.Errorf("VCS URI = %q", log.Runs[0].VersionControlProvenance[0].RepositoryURI)
 	}
 }
