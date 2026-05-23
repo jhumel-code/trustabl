@@ -124,14 +124,27 @@ func runScan(target string, f scanFlags) error {
 	// Resolve detection rules from the external rules repository.
 	res, err := rulesource.Resolve(rulesConfigFromScan(f), rules.SupportedSchemaVersion)
 	if err != nil {
-		if errors.Is(err, rulesource.ErrNoRules) || errors.Is(err, rulesource.ErrNoCompatibleRules) {
+		switch {
+		case errors.Is(err, rulesource.ErrNoCompatibleRules):
+			// Rules were available but newer than this build understands, and
+			// no older compatible pack is cached. The fix is a newer engine,
+			// not another fetch.
+			fmt.Fprintf(os.Stderr,
+				"The rules are newer than this Trustabl build can evaluate "+
+					"(this engine supports rule schema version up to %d).\n",
+				rules.SupportedSchemaVersion)
 			fmt.Fprintln(os.Stderr,
-				"No usable rules found locally and could not fetch from the rules repository.")
+				"Upgrade Trustabl, or use --rules-ref to pin an older compatible rules version.")
+			return exitCodeError{2}
+		case errors.Is(err, rulesource.ErrNoRules):
+			fmt.Fprintln(os.Stderr,
+				"No usable rules found: none cached locally and none could be fetched.")
 			fmt.Fprintln(os.Stderr,
 				`Run "trustabl rules pull" to download the rule packs.`)
 			return exitCodeError{2}
+		default:
+			return fmt.Errorf("resolve rules: %w", err)
 		}
-		return fmt.Errorf("resolve rules: %w", err)
 	}
 	// A cache hit is expected (not a warning) when the user opted out of
 	// fetching with --no-rules-update. Only warn when an attempted fetch fell
@@ -226,6 +239,12 @@ func newRulesCommand() *cobra.Command {
 				rules.SupportedSchemaVersion,
 			)
 			if err != nil {
+				if errors.Is(err, rulesource.ErrNoCompatibleRules) {
+					return fmt.Errorf("the rules at the requested ref are newer than this "+
+						"Trustabl build can evaluate (this engine supports rule schema "+
+						"version up to %d); upgrade Trustabl or pull an older --rules-ref",
+						rules.SupportedSchemaVersion)
+				}
 				return fmt.Errorf("rules pull: %w", err)
 			}
 			fmt.Printf("Pulled rules from %s at %s\n", res.RepoURL, res.SHA)
