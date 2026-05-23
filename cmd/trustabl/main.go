@@ -27,6 +27,7 @@ import (
 	"github.com/trustabl/trustabl/internal/review"
 	"github.com/trustabl/trustabl/internal/rules"
 	"github.com/trustabl/trustabl/internal/rulesource"
+	"github.com/trustabl/trustabl/internal/sarif"
 	"github.com/trustabl/trustabl/internal/scanner"
 )
 
@@ -100,7 +101,7 @@ func newScanCommand() *cobra.Command {
 	cmd.Flags().StringVar(&f.detectors, "detectors", "",
 		"comma-separated detector categories: claude_sdk, openai_sdk, openshell (default: all)")
 	cmd.Flags().StringVar(&f.format, "format", "human",
-		"output format: human|json")
+		"output format: human|json|sarif")
 	cmd.Flags().BoolVar(&f.strict, "strict", false,
 		"exit 1 if any finding is present, regardless of severity")
 	cmd.Flags().BoolVar(&f.noColor, "no-color", false,
@@ -234,6 +235,10 @@ func finishScan(result models.ScanResult, jobErr error, f scanFlags) error {
 		if err := emitJSON(result); err != nil {
 			return err
 		}
+	case "sarif":
+		if err := emitSARIF(result); err != nil {
+			return err
+		}
 	case "human", "":
 		r := &review.Renderer{NoColor: f.noColor}
 		fmt.Print(r.Render(result))
@@ -253,6 +258,11 @@ func emitJSON(result models.ScanResult) error {
 		return err
 	}
 	_, err = os.Stdout.Write(append(b, '\n'))
+	return err
+}
+
+func emitSARIF(result models.ScanResult) error {
+	_, err := os.Stdout.Write(sarif.Render(result))
 	return err
 }
 
