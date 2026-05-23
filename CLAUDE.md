@@ -330,6 +330,9 @@ Repo-wide hard rules that span the whole codebase:
   yields a distinct ID. Any ordered output (findings, inventory slices,
   components) MUST be sorted and deduped deterministically before
   emitting — no timestamps, map iteration order, or scheduling may leak in.
+  Real-time progress output (the `internal/progress` package) is **stderr-only**
+  and must never write to stdout or influence `ScanResult` — the report stays
+  byte-stable regardless of progress mode.
 - **Never commit secrets, credentials, or example repos under
   `examples/`** without confirming the source is public and
   unencumbered. The examples corpus is part of the test contract — it

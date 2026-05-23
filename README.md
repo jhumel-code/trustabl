@@ -158,6 +158,11 @@ under `--strict`), `2` = scanner error (including no usable rules — run
 `trustabl rules pull`). There is no built-in CI integration — pipe
 `--format json` to your own logic, or act on the exit code.
 
+In `--format human`, the scan prints real-time progress to **stderr** — an
+animated spinner and progress bar on an interactive terminal, or plain
+`[phase] summary` lines when piped (CI-friendly). `--format json` emits no
+progress. The report itself always goes to stdout and is byte-stable.
+
 OpenShell surfaces are still discovered (shell-invocation functions,
 `openshell/*.yaml` policies), but the OSH-* detection rules that audited them
 have moved to a closed-source companion project, so repos using OpenShell
@@ -211,6 +216,10 @@ trustabl scan ./repo --rules-ref v1.2.0
 
 # Air-gapped / offline: skip the network fetch, use the cached rules only
 trustabl scan ./repo --no-rules-update
+
+# Progress output (human format): animated on a terminal, plain lines when piped
+trustabl scan ./repo                 # spinner + bars on a TTY; "[phase] summary" lines when piped
+trustabl scan ./repo --no-progress   # disable progress entirely
 ```
 
 Rules are cached under your OS cache dir (`os.UserCacheDir()`, e.g.

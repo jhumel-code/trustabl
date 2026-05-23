@@ -85,6 +85,16 @@ The resolved commit SHA is recorded on `ScanResult` (`RulesSource`,
 `RulesVersion`, `RulesFromCache`) and folded into `ScanID` (see §7).
 `trustabl rules pull` performs the same fetch eagerly without scanning.
 
+### Progress reporting
+
+`scanner.Run` takes an optional `Config.Progress` (`progress.Reporter`); nil
+means no output. It emits phase events (recon, inventory per-file, analysis
+per-entity) that the CLI renders to **stderr** — animated on a TTY, plain lines
+when piped, silent for JSON. `DiscoverTools` takes an `onFile` callback and
+`detectors.Registry.Run` takes an `onEntity` callback to drive the per-item
+bars; both are nil-able and do not affect `ScanResult`. Progress never touches
+stdout, preserving the determinism contract (§7).
+
 ### Steps
 
 The scan is a flat sequence of steps. There is no concurrency between steps and
@@ -666,6 +676,10 @@ cmd/trustabl/                    CLI entry point (cobra). main.go only.
 internal/
 ├── models/                      Cross-boundary types. JSON-tagged. Zero deps.
 ├── ingestion/                   Importer + Normalizer.
+├── progress/                    Real-time scan progress (stderr-only).
+│   ├── reporter.go              Reporter iface, Mode, PickMode, nop.
+│   ├── plain.go                 Static-line reporter (piped human).
+│   └── tty.go                   bubbletea model + TTYReporter (interactive).
 ├── analysis/
 │   ├── astutil/                 Tiny tree-sitter ergonomic layer (NodeText,
 │   │                            Walk, FindAll, FunctionName, FunctionParams,
@@ -927,7 +941,7 @@ timestamp, no map iteration order, no goroutine scheduling may influence output.
 
 ```
 trustabl scan <target> [--detectors=…] [--format=human|json]
-                       [--strict] [--no-color]
+                       [--strict] [--no-color] [--no-progress]
                        [--rules-repo=URL] [--rules-ref=REF] [--no-rules-update]
 trustabl rules pull    [--rules-repo=URL] [--rules-ref=REF]
 trustabl version
