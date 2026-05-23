@@ -163,6 +163,10 @@ animated spinner and progress bar on an interactive terminal, or plain
 `[phase] summary` lines when piped (CI-friendly). `--format json` emits no
 progress. The report itself always goes to stdout and is byte-stable.
 
+`--format sarif` emits a SARIF 2.1.0 document on stdout, suitable for
+`github/codeql-action/upload-sarif` and other SARIF-aware tools. Like
+`--format json`, the SARIF mode is progress-silent.
+
 OpenShell surfaces are still discovered (shell-invocation functions,
 `openshell/*.yaml` policies), but the OSH-* detection rules that audited them
 have moved to a closed-source companion project, so repos using OpenShell
@@ -203,6 +207,9 @@ trustabl scan ./repo --detectors claude_sdk,openai_sdk
 
 # JSON output for CI piping
 trustabl scan ./repo --format json
+
+# SARIF output for GitHub Code Scanning / SARIF-aware tools
+trustabl scan ./repo --format sarif > trustabl.sarif
 
 # Exit 1 on any finding regardless of severity
 trustabl scan ./repo --strict

@@ -420,6 +420,17 @@ anything into the scanned repo.
 - `--format json` marshals the `ScanResult` directly (in `cmd/trustabl`), for
   CI consumers.
 
+### SARIF output (`--format sarif`)
+
+`internal/sarif.Render(ScanResult)` emits a SARIF 2.1.0 JSON document that
+`github/codeql-action/upload-sarif` and other SARIF consumers accept
+unchanged. The field-mapping rules — severity bucketing, the META finding
+split between results and notifications, the `partialFingerprints` scheme,
+and rule-catalog inclusion — are recorded in the spec at
+`.superpowers/specs/2026-05-24-sarif-output-design.md`. Like JSON, SARIF is
+a pure function of `ScanResult`: no clocks, no map-iteration leakage,
+byte-stable per `ScanID`.
+
 An earlier version of Trustabl also generated committable artifacts
 (Pre/PostToolUse hook scripts, an OpenShell sandbox-policy starter) and could
 apply or export them. That generation path has been removed — Trustabl now
@@ -712,6 +723,9 @@ internal/
 │   ├── cache.go                 Cache layout + current-pointer helpers.
 │   ├── manifest.go              manifest.yaml read + schema-compatibility gate.
 │   └── rulesource.go            Resolve / Pull; Config; Resolved; DefaultRepoURL.
+├── sarif/                       SARIF 2.1.0 output renderer (`--format sarif`).
+│   ├── types.go                 SARIF struct definitions.
+│   └── render.go                Render(ScanResult) + helpers (severity, locations, fingerprints).
 ├── review/                      Human renderer (read-only; no file writes).
 └── inference/                   BYOK inference router (interface + cache).
 
@@ -948,7 +962,7 @@ timestamp, no map iteration order, no goroutine scheduling may influence output.
 ## 8. CLI surface ([cmd/trustabl/main.go](cmd/trustabl/main.go))
 
 ```
-trustabl scan <target> [--detectors=…] [--format=human|json]
+trustabl scan <target> [--detectors=…] [--format=human|json|sarif]
                        [--strict] [--no-color] [--no-progress]
                        [--rules-repo=URL] [--rules-ref=REF] [--no-rules-update]
 trustabl rules pull    [--rules-repo=URL] [--rules-ref=REF]
