@@ -1,0 +1,8 @@
+# Normalize line endings inside the test mirror of the rules repo so its
+# diff against trustabl-rules (which is LF) shows only real content drift —
+# not CRLF/LF noise from Windows checkouts. Scope is intentionally narrow:
+# rules content is what we cross-check against the live repo; the rest of
+# the engine repo keeps Git's default behavior.
+testdata/rules-fixture/**/*.yaml text eol=lf
+testdata/rules-fixture/**/*.md   text eol=lf
+testdata/rules-fixture/manifest.yaml text eol=lf
