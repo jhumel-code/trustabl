@@ -6,6 +6,7 @@ import (
 	sitter "github.com/smacker/go-tree-sitter"
 	"github.com/smacker/go-tree-sitter/typescript/tsx"
 	"github.com/smacker/go-tree-sitter/typescript/typescript"
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 // NewTSParser returns a parser configured for the tree-sitter-typescript
@@ -122,4 +123,82 @@ func collectImportSpec(n *sitter.Node, src []byte, out map[string]string) {
 			out[localName] = origName
 		}
 	}
+}
+
+// TSObjectKwargs converts a tree-sitter "object" node (object literal) into
+// a KwargTree. Each property becomes a child keyed by the property name.
+// Leaf values are typed via classifyTSExpr (string/int/bool/null literals,
+// list/array, call, identifier, or unknown). Spread properties and computed
+// property names are skipped (the caller can detect this by an Opaque-style
+// check — TSObjectKwargs does NOT itself flag opaqueness).
+func TSObjectKwargs(obj *sitter.Node, src []byte) *models.KwargTree {
+	out := &models.KwargTree{Children: map[string]*models.KwargTree{}}
+	if obj == nil || obj.Type() != "object" {
+		return out
+	}
+	for i := 0; i < int(obj.NamedChildCount()); i++ {
+		prop := obj.NamedChild(i)
+		if prop.Type() != "pair" {
+			continue // skip spread_element and shorthand_property_identifier
+		}
+		key := prop.ChildByFieldName("key")
+		val := prop.ChildByFieldName("value")
+		if key == nil || val == nil {
+			continue
+		}
+		// Only property_identifier and string keys are extractable; computed
+		// keys (in [brackets]) are skipped — caller can detect via a separate
+		// hasComputedKey() pass.
+		var keyName string
+		switch key.Type() {
+		case "property_identifier":
+			keyName = NodeText(key, src)
+		case "string":
+			raw := NodeText(key, src)
+			if len(raw) >= 2 {
+				keyName = raw[1 : len(raw)-1]
+			}
+		default:
+			continue
+		}
+		child := &models.KwargTree{}
+		if val.Type() == "object" {
+			nested := TSObjectKwargs(val, src)
+			child.Children = nested.Children
+		} else {
+			child.Value = classifyTSExpr(val, src)
+		}
+		out.Children[keyName] = child
+	}
+	return out
+}
+
+func classifyTSExpr(n *sitter.Node, src []byte) *models.Expr {
+	if n == nil {
+		return nil
+	}
+	text := NodeText(n, src)
+	switch n.Type() {
+	case "string":
+		return &models.Expr{Kind: models.ExprLiteralString, Text: text}
+	case "number":
+		return &models.Expr{Kind: models.ExprLiteralInt, Text: text}
+	case "true", "false":
+		return &models.Expr{Kind: models.ExprLiteralBool, Text: text}
+	case "null", "undefined":
+		return &models.Expr{Kind: models.ExprLiteralNone, Text: text}
+	case "identifier":
+		return &models.Expr{Kind: models.ExprNameRef, Text: text}
+	case "call_expression":
+		return &models.Expr{Kind: models.ExprCall, Text: text}
+	case "array":
+		list := make([]models.Expr, 0, n.NamedChildCount())
+		for i := 0; i < int(n.NamedChildCount()); i++ {
+			if e := classifyTSExpr(n.NamedChild(i), src); e != nil {
+				list = append(list, *e)
+			}
+		}
+		return &models.Expr{Kind: models.ExprList, Text: text, List: list}
+	}
+	return &models.Expr{Kind: models.ExprUnknown, Text: text}
 }
