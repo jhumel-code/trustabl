@@ -37,6 +37,14 @@ rules:
           - httpx.head
           - httpx.request
           - urllib.request.urlopen
+          # NOTE: these aiohttp.ClientSession.* entries match only DIRECT
+          # calls of that literal text. The engine's alias resolver
+          # canonicalizes a reused session (s = aiohttp.ClientSession();
+          # s.get(...)) to `aiohttp.get` / `aiohttp.post`, which are NOT in
+          # this list — so aliased aiohttp sessions are not yet caught. To
+          # cover them, add `aiohttp.get` / `aiohttp.post` callees here.
+          # (requests/httpx aliasing already works: their callee lists use the
+          # `requests.get` / `httpx.post` form the resolver produces.)
           - aiohttp.ClientSession.get
           - aiohttp.ClientSession.post
         missing: timeout
