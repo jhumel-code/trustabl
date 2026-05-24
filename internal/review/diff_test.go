@@ -23,6 +23,7 @@ func TestRender_HostedToolsVisibleInHumanFormat(t *testing.T) {
 			{
 				SDK:      models.SDKOpenAIAgents,
 				Class:    "Agent",
+				Language: models.LanguagePython,
 				Name:     "search",
 				FilePath: "agents/search.py",
 				Line:     12,
@@ -57,11 +58,12 @@ func TestRender_HostedToolsVisibleInHumanFormat(t *testing.T) {
 func TestRender_MCPServersVisibleInHumanFormat(t *testing.T) {
 	stdio := models.MCPServerDef{
 		Class: "MCPServerStdio", Transport: "stdio", SDK: models.SDKOpenAIAgents,
+		Language: models.LanguagePython,
 		FilePath: "main.py", Line: 10,
 	}
 	result := models.ScanResult{
 		Agents: []models.AgentDef{{
-			SDK: models.SDKOpenAIAgents, Class: "Agent", Name: "fs",
+			SDK: models.SDKOpenAIAgents, Class: "Agent", Language: models.LanguagePython, Name: "fs",
 			FilePath: "main.py", Line: 10,
 			MCPServerRefs: []models.MCPServerRef{{Class: "MCPServerStdio", Resolved: &stdio}},
 		}},

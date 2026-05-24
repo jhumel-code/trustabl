@@ -393,14 +393,16 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.AgentDef{
 			SDK:      models.SDKOpenAIAgents,
 			Class:    "Agent",
+			Language: models.LanguagePython,
 			ToolRefs: []models.ToolRef{{Name: "run_cmd", Resolved: &models.ToolDef{Kind: models.KindShellInvocation}}},
 		},
 		models.RepoInventory{},
 		true},
 	{"OAI-101 silent when input_guardrails present", "OAI-101",
 		models.AgentDef{
-			SDK:   models.SDKOpenAIAgents,
-			Class: "Agent",
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			Language: models.LanguagePython,
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"input_guardrails": {Value: &models.Expr{Kind: models.ExprList, List: []models.Expr{
 					{Kind: models.ExprNameRef, Text: "my_guard"},
@@ -414,8 +416,9 @@ var policyAgentRuleCases = []policyAgentCase{
 	// ─── OAI-102 stop_on_first_tool ──────────────────────────────────────────
 	{"OAI-102 fires on stop_on_first_tool", "OAI-102",
 		models.AgentDef{
-			SDK:   models.SDKOpenAIAgents,
-			Class: "Agent",
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			Language: models.LanguagePython,
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"tool_use_behavior": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"stop_on_first_tool"`}},
 			}},
@@ -424,9 +427,10 @@ var policyAgentRuleCases = []policyAgentCase{
 		true},
 	{"OAI-102 silent on default behavior", "OAI-102",
 		models.AgentDef{
-			SDK:    models.SDKOpenAIAgents,
-			Class:  "Agent",
-			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{}},
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			Language: models.LanguagePython,
+			Kwargs:   &models.KwargTree{Children: map[string]*models.KwargTree{}},
 		},
 		models.RepoInventory{},
 		false},
@@ -434,8 +438,9 @@ var policyAgentRuleCases = []policyAgentCase{
 	// ─── OAI-103 tool_choice=required + reset_tool_choice=False ──────────────
 	{"OAI-103 fires on loop pattern", "OAI-103",
 		models.AgentDef{
-			SDK:   models.SDKOpenAIAgents,
-			Class: "Agent",
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			Language: models.LanguagePython,
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"model_settings": {Children: map[string]*models.KwargTree{
 					"tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"required"`}},
@@ -447,8 +452,9 @@ var policyAgentRuleCases = []policyAgentCase{
 		true},
 	{"OAI-103 silent when reset_tool_choice not set", "OAI-103",
 		models.AgentDef{
-			SDK:   models.SDKOpenAIAgents,
-			Class: "Agent",
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			Language: models.LanguagePython,
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"model_settings": {Children: map[string]*models.KwargTree{
 					"tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"required"`}},
@@ -463,6 +469,7 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.AgentDef{
 			SDK:      models.SDKOpenAIAgents,
 			Class:    "Agent",
+			Language: models.LanguagePython,
 			ToolRefs: []models.ToolRef{{Name: "run_cmd", Resolved: &models.ToolDef{Kind: models.KindShellInvocation}}},
 		},
 		models.RepoInventory{},
@@ -471,6 +478,7 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.AgentDef{
 			SDK:      models.SDKOpenAIAgents,
 			Class:    "Agent",
+			Language: models.LanguagePython,
 			ToolRefs: []models.ToolRef{{Name: "fetch", Resolved: &models.ToolDef{Kind: models.KindOpenAITool}}},
 		},
 		models.RepoInventory{},
@@ -479,8 +487,9 @@ var policyAgentRuleCases = []policyAgentCase{
 	// ─── OAI-105 mcp_servers + no input_guardrails ───────────────────────────
 	{"OAI-105 fires with mcp_servers and no guardrails", "OAI-105",
 		models.AgentDef{
-			SDK:   models.SDKOpenAIAgents,
-			Class: "Agent",
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			Language: models.LanguagePython,
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"mcp_servers": {Value: &models.Expr{Kind: models.ExprList, List: []models.Expr{
 					{Kind: models.ExprNameRef, Text: "my_mcp"},
@@ -491,8 +500,9 @@ var policyAgentRuleCases = []policyAgentCase{
 		true},
 	{"OAI-105 silent when input_guardrails also present", "OAI-105",
 		models.AgentDef{
-			SDK:   models.SDKOpenAIAgents,
-			Class: "Agent",
+			SDK:      models.SDKOpenAIAgents,
+			Class:    "Agent",
+			Language: models.LanguagePython,
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"mcp_servers": {Value: &models.Expr{Kind: models.ExprList, List: []models.Expr{
 					{Kind: models.ExprNameRef, Text: "my_mcp"},
@@ -508,9 +518,10 @@ var policyAgentRuleCases = []policyAgentCase{
 	// ─── CSDK-101 Claude subagent granted Bash ────────────────────────────────
 	{"CSDK-101 fires when AgentDefinition grants Bash", "CSDK-101",
 		models.AgentDef{
-			SDK:   models.SDKClaudeAgentSDK,
-			Class: "AgentDefinition",
-			Name:  "data-analyst",
+			SDK:      models.SDKClaudeAgentSDK,
+			Class:    "AgentDefinition",
+			Language: models.LanguagePython,
+			Name:     "data-analyst",
 			ToolRefs: []models.ToolRef{
 				{Name: `"Glob"`, External: true},
 				{Name: `"Bash"`, External: true},
@@ -521,9 +532,10 @@ var policyAgentRuleCases = []policyAgentCase{
 		true},
 	{"CSDK-101 silent when no Bash in tools", "CSDK-101",
 		models.AgentDef{
-			SDK:   models.SDKClaudeAgentSDK,
-			Class: "AgentDefinition",
-			Name:  "researcher",
+			SDK:      models.SDKClaudeAgentSDK,
+			Class:    "AgentDefinition",
+			Language: models.LanguagePython,
+			Name:     "researcher",
 			ToolRefs: []models.ToolRef{
 				{Name: `"WebSearch"`, External: true},
 				{Name: `"Write"`, External: true},
@@ -535,9 +547,10 @@ var policyAgentRuleCases = []policyAgentCase{
 	// ─── ADK-101 LlmAgent with no description ────────────────────────────────
 	{"ADK-101 fires when LlmAgent has no description", "ADK-101",
 		models.AgentDef{
-			SDK:   models.SDKGoogleADK,
-			Class: "LlmAgent",
-			Name:  "child",
+			SDK:      models.SDKGoogleADK,
+			Class:    "LlmAgent",
+			Language: models.LanguagePython,
+			Name:     "child",
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"name": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"child"`}},
 			}},
@@ -546,9 +559,10 @@ var policyAgentRuleCases = []policyAgentCase{
 		true},
 	{"ADK-101 silent when LlmAgent has description", "ADK-101",
 		models.AgentDef{
-			SDK:   models.SDKGoogleADK,
-			Class: "LlmAgent",
-			Name:  "child",
+			SDK:      models.SDKGoogleADK,
+			Class:    "LlmAgent",
+			Language: models.LanguagePython,
+			Name:     "child",
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"name":        {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"child"`}},
 				"description": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"Looks up weather."`}},
@@ -562,6 +576,7 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.AgentDef{
 			SDK:            models.SDKGoogleADK,
 			Class:          "LlmAgent",
+			Language:       models.LanguagePython,
 			Name:           "root",
 			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
@@ -574,6 +589,7 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.AgentDef{
 			SDK:            models.SDKGoogleADK,
 			Class:          "LlmAgent",
+			Language:       models.LanguagePython,
 			Name:           "root",
 			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
@@ -589,6 +605,7 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.AgentDef{
 			SDK:            models.SDKGoogleADK,
 			Class:          "LlmAgent",
+			Language:       models.LanguagePython,
 			Name:           "child",
 			FilePath:       "main.py",
 			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
@@ -597,10 +614,11 @@ var policyAgentRuleCases = []policyAgentCase{
 			{
 				SDK:      models.SDKGoogleADK,
 				Class:    "SequentialAgent",
+				Language: models.LanguagePython,
 				Name:     "parent",
 				FilePath: "main.py",
 				HandoffRefs: []models.AgentRef{
-					{Name: "child", Resolved: &models.AgentDef{Name: "child", FilePath: "main.py"}},
+					{Name: "child", Resolved: &models.AgentDef{Name: "child", FilePath: "main.py", Language: models.LanguagePython}},
 				},
 			},
 		}},
@@ -609,6 +627,7 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.AgentDef{
 			SDK:            models.SDKGoogleADK,
 			Class:          "LlmAgent",
+			Language:       models.LanguagePython,
 			Name:           "root",
 			FilePath:       "main.py",
 			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
@@ -617,6 +636,7 @@ var policyAgentRuleCases = []policyAgentCase{
 			{
 				SDK:      models.SDKGoogleADK,
 				Class:    "LlmAgent",
+				Language: models.LanguagePython,
 				Name:     "sibling",
 				FilePath: "main.py",
 			},
@@ -628,6 +648,7 @@ var policyAgentRuleCases = []policyAgentCase{
 		models.AgentDef{
 			SDK:            models.SDKGoogleADK,
 			Class:          "LlmAgent",
+			Language:       models.LanguagePython,
 			Name:           "root",
 			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
@@ -744,5 +765,23 @@ func TestPolicyRules_AllRulesCovered(t *testing.T) {
 	}
 	if len(missing) > 0 {
 		t.Errorf("rules without policy_test coverage: %v", missing)
+	}
+}
+
+// TestFixtureAgentsHaveLanguage guards the language-gate contract added in
+// Task 5: every AgentDef fixture used by the policy-rule tests must carry
+// an explicit Language so the gate doesn't silently reject Python agents.
+func TestFixtureAgentsHaveLanguage(t *testing.T) {
+	for _, c := range policyAgentRuleCases {
+		// Check fire case
+		if c.agent.Language == "" {
+			t.Errorf("rule %s fire case has AgentDef with empty Language", c.ruleID)
+		}
+		// Check silent case (in RepoInventory)
+		for _, a := range c.inv.Agents {
+			if a.Language == "" {
+				t.Errorf("rule %s silent case has AgentDef with empty Language", c.ruleID)
+			}
+		}
 	}
 }

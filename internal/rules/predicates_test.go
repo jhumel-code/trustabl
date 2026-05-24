@@ -433,7 +433,7 @@ func TestPredToolDecoratorKwargPresent(t *testing.T) {
 // ─── agent predicates ─────────────────────────────────────────────────────────
 
 func TestPredAgentClass(t *testing.T) {
-	a := models.AgentDef{Class: "Agent"}
+	a := models.AgentDef{Class: "Agent", Language: models.LanguagePython}
 	if !rules.PredAgentClass([]string{"Agent"}, a) {
 		t.Error("expected match")
 	}
@@ -443,14 +443,16 @@ func TestPredAgentClass(t *testing.T) {
 }
 
 func TestPredAgentKwargPresent(t *testing.T) {
-	a := models.AgentDef{Kwargs: &models.KwargTree{
-		Children: map[string]*models.KwargTree{
-			"model": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"gpt-4"`}},
-			"model_settings": {Children: map[string]*models.KwargTree{
-				"tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"required"`}},
-			}},
-		},
-	}}
+	a := models.AgentDef{
+		Language: models.LanguagePython,
+		Kwargs: &models.KwargTree{
+			Children: map[string]*models.KwargTree{
+				"model": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"gpt-4"`}},
+				"model_settings": {Children: map[string]*models.KwargTree{
+					"tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"required"`}},
+				}},
+			},
+		}}
 	if !rules.PredAgentKwargPresent([]string{"model"}, a) {
 		t.Error("expected model present")
 	}
@@ -463,11 +465,13 @@ func TestPredAgentKwargPresent(t *testing.T) {
 }
 
 func TestPredAgentKwargMissing(t *testing.T) {
-	a := models.AgentDef{Kwargs: &models.KwargTree{
-		Children: map[string]*models.KwargTree{
-			"model": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"gpt-4"`}},
-		},
-	}}
+	a := models.AgentDef{
+		Language: models.LanguagePython,
+		Kwargs: &models.KwargTree{
+			Children: map[string]*models.KwargTree{
+				"model": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"gpt-4"`}},
+			},
+		}}
 	if !rules.PredAgentKwargMissing([]string{"input_guardrails"}, a) {
 		t.Error("expected input_guardrails missing")
 	}
@@ -477,31 +481,35 @@ func TestPredAgentKwargMissing(t *testing.T) {
 }
 
 func TestPredAgentKwargListEmpty(t *testing.T) {
-	a := models.AgentDef{Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{}}}
+	a := models.AgentDef{Language: models.LanguagePython, Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{}}}
 	if !rules.PredAgentKwargListEmpty([]string{"input_guardrails"}, a) {
 		t.Error("expected list empty when kwarg absent")
 	}
-	a = models.AgentDef{Kwargs: &models.KwargTree{
-		Children: map[string]*models.KwargTree{
-			"input_guardrails": {Value: &models.Expr{Kind: models.ExprList, List: []models.Expr{
-				{Kind: models.ExprNameRef, Text: "g"},
-			}}},
-		},
-	}}
+	a = models.AgentDef{
+		Language: models.LanguagePython,
+		Kwargs: &models.KwargTree{
+			Children: map[string]*models.KwargTree{
+				"input_guardrails": {Value: &models.Expr{Kind: models.ExprList, List: []models.Expr{
+					{Kind: models.ExprNameRef, Text: "g"},
+				}}},
+			},
+		}}
 	if rules.PredAgentKwargListEmpty([]string{"input_guardrails"}, a) {
 		t.Error("expected list NOT empty")
 	}
 }
 
 func TestPredAgentKwargValue_Dotted(t *testing.T) {
-	a := models.AgentDef{Kwargs: &models.KwargTree{
-		Children: map[string]*models.KwargTree{
-			"model_settings": {Children: map[string]*models.KwargTree{
-				"tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"required"`}},
-			}},
-			"reset_tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralBool, Text: "False"}},
-		},
-	}}
+	a := models.AgentDef{
+		Language: models.LanguagePython,
+		Kwargs: &models.KwargTree{
+			Children: map[string]*models.KwargTree{
+				"model_settings": {Children: map[string]*models.KwargTree{
+					"tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"required"`}},
+				}},
+				"reset_tool_choice": {Value: &models.Expr{Kind: models.ExprLiteralBool, Text: "False"}},
+			},
+		}}
 	if !rules.PredAgentKwargValue(rules.AgentKwargValueExpr{Kwarg: "model_settings.tool_choice", Value: "required"}, a) {
 		t.Error("expected dotted match (after stripping quotes)")
 	}
@@ -512,7 +520,7 @@ func TestPredAgentKwargValue_Dotted(t *testing.T) {
 
 func TestPredAgentUsesToolKind(t *testing.T) {
 	shellTool := &models.ToolDef{Kind: models.KindShellInvocation, Name: "run"}
-	a := models.AgentDef{ToolRefs: []models.ToolRef{{Name: "run", Resolved: shellTool}}}
+	a := models.AgentDef{Language: models.LanguagePython, ToolRefs: []models.ToolRef{{Name: "run", Resolved: shellTool}}}
 	inv := models.RepoInventory{}
 	if !rules.PredAgentUsesToolKind([]string{"shell_invocation"}, a, inv) {
 		t.Error("expected match against shell_invocation tool ref")
@@ -523,8 +531,8 @@ func TestPredAgentUsesToolKind(t *testing.T) {
 }
 
 func TestPredAgentHandoffToClass(t *testing.T) {
-	sub := &models.AgentDef{Class: "Agent"}
-	a := models.AgentDef{HandoffRefs: []models.AgentRef{{Resolved: sub}}}
+	sub := &models.AgentDef{Class: "Agent", Language: models.LanguagePython}
+	a := models.AgentDef{Language: models.LanguagePython, HandoffRefs: []models.AgentRef{{Resolved: sub}}}
 	if !rules.PredAgentHandoffToClass([]string{"Agent"}, a) {
 		t.Error("expected match")
 	}
@@ -556,7 +564,7 @@ func TestPredRepoHasSDKInCode(t *testing.T) {
 }
 
 func TestPredRepoHasAgentClass(t *testing.T) {
-	inv := models.RepoInventory{Agents: []models.AgentDef{{Class: "Agent"}}}
+	inv := models.RepoInventory{Agents: []models.AgentDef{{Class: "Agent", Language: models.LanguagePython}}}
 	if !rules.PredRepoHasAgentClass([]string{"Agent"}, inv) {
 		t.Error("expected match")
 	}
@@ -566,7 +574,7 @@ func TestPredRepoHasAgentClass(t *testing.T) {
 }
 
 func TestPredRepoHasNoAgentClass(t *testing.T) {
-	inv := models.RepoInventory{Agents: []models.AgentDef{{Class: "Agent"}}}
+	inv := models.RepoInventory{Agents: []models.AgentDef{{Class: "Agent", Language: models.LanguagePython}}}
 	if rules.PredRepoHasNoAgentClass([]string{"Agent"}, inv) {
 		t.Error("expected false when Agent exists")
 	}
@@ -615,31 +623,31 @@ func TestPredAgentUsesHostedToolClass(t *testing.T) {
 	}{
 		{
 			name:    "matches single class",
-			agent:   models.AgentDef{HostedToolRefs: []models.HostedToolRef{bashRef}},
+			agent:   models.AgentDef{Language: models.LanguagePython, HostedToolRefs: []models.HostedToolRef{bashRef}},
 			classes: []string{"BashTool"},
 			want:    true,
 		},
 		{
 			name:    "matches one of many",
-			agent:   models.AgentDef{HostedToolRefs: []models.HostedToolRef{webRef, bashRef}},
+			agent:   models.AgentDef{Language: models.LanguagePython, HostedToolRefs: []models.HostedToolRef{webRef, bashRef}},
 			classes: []string{"BashTool"},
 			want:    true,
 		},
 		{
 			name:    "no match",
-			agent:   models.AgentDef{HostedToolRefs: []models.HostedToolRef{webRef}},
+			agent:   models.AgentDef{Language: models.LanguagePython, HostedToolRefs: []models.HostedToolRef{webRef}},
 			classes: []string{"BashTool"},
 			want:    false,
 		},
 		{
 			name:    "unresolved ref still matches by class name",
-			agent:   models.AgentDef{HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}}},
+			agent:   models.AgentDef{Language: models.LanguagePython, HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}}},
 			classes: []string{"BashTool"},
 			want:    true,
 		},
 		{
 			name:    "no refs",
-			agent:   models.AgentDef{},
+			agent:   models.AgentDef{Language: models.LanguagePython},
 			classes: []string{"BashTool"},
 			want:    false,
 		},
@@ -722,23 +730,25 @@ def tool(host: str) -> str:
 }
 
 func TestPredAgentIsSubagentOfAny(t *testing.T) {
-	childResolved := &models.AgentDef{Name: "child", FilePath: "main.py"}
+	childResolved := &models.AgentDef{Name: "child", FilePath: "main.py", Language: models.LanguagePython}
 	parent := models.AgentDef{
+		SDK:      models.SDKGoogleADK,
+		Class:    "LlmAgent",
+		Language: models.LanguagePython,
 		Name:     "parent",
 		FilePath: "main.py",
-		Class:    "LlmAgent",
-		SDK:      models.SDKGoogleADK,
 		HandoffRefs: []models.AgentRef{
 			{Name: "child", Resolved: childResolved},
 		},
 	}
 	selfParent := models.AgentDef{
+		SDK:      models.SDKGoogleADK,
+		Class:    "LlmAgent",
+		Language: models.LanguagePython,
 		Name:     "selfparent",
 		FilePath: "main.py",
-		Class:    "LlmAgent",
-		SDK:      models.SDKGoogleADK,
 		HandoffRefs: []models.AgentRef{
-			{Name: "selfparent", Resolved: &models.AgentDef{Name: "selfparent", FilePath: "main.py"}},
+			{Name: "selfparent", Resolved: &models.AgentDef{Name: "selfparent", FilePath: "main.py", Language: models.LanguagePython}},
 		},
 	}
 
@@ -750,25 +760,25 @@ func TestPredAgentIsSubagentOfAny(t *testing.T) {
 	}{
 		{
 			name:  "child appears in parent's HandoffRefs",
-			agent: models.AgentDef{Name: "child", FilePath: "main.py"},
+			agent: models.AgentDef{Name: "child", FilePath: "main.py", Language: models.LanguagePython},
 			inv:   models.RepoInventory{Agents: []models.AgentDef{parent}},
 			want:  true,
 		},
 		{
 			name:  "unrelated agent is not anyone's subagent",
-			agent: models.AgentDef{Name: "unrelated", FilePath: "main.py"},
+			agent: models.AgentDef{Name: "unrelated", FilePath: "main.py", Language: models.LanguagePython},
 			inv:   models.RepoInventory{Agents: []models.AgentDef{parent}},
 			want:  false,
 		},
 		{
 			name:  "self-handoff edge case — still true",
-			agent: models.AgentDef{Name: "selfparent", FilePath: "main.py"},
+			agent: models.AgentDef{Name: "selfparent", FilePath: "main.py", Language: models.LanguagePython},
 			inv:   models.RepoInventory{Agents: []models.AgentDef{selfParent}},
 			want:  true,
 		},
 		{
 			name:  "empty inventory",
-			agent: models.AgentDef{Name: "child", FilePath: "main.py"},
+			agent: models.AgentDef{Name: "child", FilePath: "main.py", Language: models.LanguagePython},
 			inv:   models.RepoInventory{},
 			want:  false,
 		},
@@ -786,6 +796,7 @@ func TestPredAgentIsSubagentOfAny(t *testing.T) {
 func TestPredAgentKwargMissing_None(t *testing.T) {
 	mk := func(kind models.ExprKind, text string) models.AgentDef {
 		return models.AgentDef{
+			Language: models.LanguagePython,
 			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
 				"before_tool_callback": {Value: &models.Expr{Kind: kind, Text: text}},
 			}},
@@ -800,7 +811,7 @@ func TestPredAgentKwargMissing_None(t *testing.T) {
 		t.Errorf("before_tool_callback=my_fn should NOT count as missing")
 	}
 	// absent -> missing
-	if !rules.PredAgentKwargMissing([]string{"before_tool_callback"}, models.AgentDef{Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{}}}) {
+	if !rules.PredAgentKwargMissing([]string{"before_tool_callback"}, models.AgentDef{Language: models.LanguagePython, Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{}}}) {
 		t.Errorf("absent before_tool_callback should count as missing")
 	}
 }
