@@ -152,3 +152,99 @@ root = LlmAgent(
 		t.Errorf("no_docs HasTypedParams: got true, want false")
 	}
 }
+
+func TestResolveEdges_ADKHostedToolAndFunctionTool(t *testing.T) {
+	src := `from google.adk.agents import LlmAgent
+from google.adk.tools import FunctionTool, BashTool
+
+def get_weather(city: str) -> str:
+    """Look up the weather."""
+    return "sunny"
+
+root = LlmAgent(
+    name="root",
+    tools=[FunctionTool(get_weather), BashTool()],
+)
+`
+	pf := parsePyFile(t, "main.py", src)
+	inv := models.RepoInventory{
+		Tools:  analysis.DiscoverADKTools([]analysis.ParsedFile{pf}),
+		Agents: analysis.DiscoverADKAgents([]analysis.ParsedFile{pf}),
+	}
+	analysis.ResolveEdges(&inv, []analysis.ParsedFile{pf})
+
+	if len(inv.Agents) != 1 {
+		t.Fatalf("got %d agents, want 1", len(inv.Agents))
+	}
+	a := inv.Agents[0]
+	if len(a.HostedToolRefs) != 1 {
+		t.Errorf("HostedToolRefs: got %d, want 1", len(a.HostedToolRefs))
+	} else if a.HostedToolRefs[0].Class != "BashTool" {
+		t.Errorf("HostedToolRef class: got %q, want BashTool", a.HostedToolRefs[0].Class)
+	}
+	if len(a.ToolRefs) != 1 {
+		t.Errorf("ToolRefs: got %d, want 1", len(a.ToolRefs))
+	} else if a.ToolRefs[0].Resolved == nil ||
+		a.ToolRefs[0].Resolved.Name != "get_weather" {
+		t.Errorf("ToolRefs[0]: not resolved to get_weather")
+	}
+
+	if len(inv.HostedTools) != 1 {
+		t.Errorf("inv.HostedTools: got %d, want 1", len(inv.HostedTools))
+	} else if inv.HostedTools[0].SDK != models.SDKGoogleADK {
+		t.Errorf("HostedTool SDK: got %q, want google_adk", inv.HostedTools[0].SDK)
+	}
+}
+
+func TestResolveEdges_ADKSubAgents(t *testing.T) {
+	src := `from google.adk.agents import LlmAgent, SequentialAgent
+
+child = LlmAgent(name="child")
+parent = SequentialAgent(name="parent", sub_agents=[child])
+`
+	pf := parsePyFile(t, "main.py", src)
+	inv := models.RepoInventory{Agents: analysis.DiscoverADKAgents([]analysis.ParsedFile{pf})}
+	analysis.ResolveEdges(&inv, []analysis.ParsedFile{pf})
+
+	var parent *models.AgentDef
+	for i := range inv.Agents {
+		if inv.Agents[i].Name == "parent" {
+			parent = &inv.Agents[i]
+		}
+	}
+	if parent == nil {
+		t.Fatal("parent agent not found")
+	}
+	if len(parent.HandoffRefs) != 1 {
+		t.Fatalf("parent.HandoffRefs: got %d, want 1", len(parent.HandoffRefs))
+	}
+	if parent.HandoffRefs[0].Resolved == nil ||
+		parent.HandoffRefs[0].Resolved.Name != "child" {
+		t.Errorf("HandoffRefs[0] not resolved to child")
+	}
+}
+
+func TestResolveEdges_ADKAgentToolNoTransitive(t *testing.T) {
+	src := `from google.adk.agents import LlmAgent
+from google.adk.tools import AgentTool
+
+inner = LlmAgent(name="inner")
+outer = LlmAgent(name="outer", tools=[AgentTool(inner)])
+`
+	pf := parsePyFile(t, "main.py", src)
+	inv := models.RepoInventory{Agents: analysis.DiscoverADKAgents([]analysis.ParsedFile{pf})}
+	analysis.ResolveEdges(&inv, []analysis.ParsedFile{pf})
+
+	var outer *models.AgentDef
+	for i := range inv.Agents {
+		if inv.Agents[i].Name == "outer" {
+			outer = &inv.Agents[i]
+		}
+	}
+	if outer == nil {
+		t.Fatal("outer agent not found")
+	}
+	if len(outer.HostedToolRefs) != 1 || outer.HostedToolRefs[0].Class != "AgentTool" {
+		t.Errorf("outer HostedToolRefs: want one AgentTool, got %#v", outer.HostedToolRefs)
+	}
+}

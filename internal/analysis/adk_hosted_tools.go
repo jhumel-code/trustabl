@@ -1,6 +1,27 @@
 package analysis
 
-import "github.com/trustabl/trustabl/internal/models"
+import (
+	"strings"
+
+	"github.com/trustabl/trustabl/internal/models"
+)
+
+// adkFunctionToolArg extracts the inner symbol from a FunctionTool(symbol)
+// call's source text. Returns ("", false) unless the text is exactly a
+// FunctionTool wrapper around a single bare identifier (e.g. nested calls,
+// keyword args, or attribute accesses are not resolvable to a same-file
+// ToolDef and so are left for External classification).
+func adkFunctionToolArg(text string) (string, bool) {
+	const prefix = "FunctionTool("
+	if !strings.HasPrefix(text, prefix) || !strings.HasSuffix(text, ")") {
+		return "", false
+	}
+	inner := strings.TrimSpace(text[len(prefix) : len(text)-1])
+	if inner == "" || strings.ContainsAny(inner, "(),=. ") {
+		return "", false
+	}
+	return inner, true
+}
 
 // ADKHostedToolClasses is the closed set of Google ADK built-in tool classes
 // recognized by discovery. Source of truth: google/adk-python's
