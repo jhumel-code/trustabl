@@ -37,6 +37,9 @@ type agentRuleDetector struct{ rule RuleDef }
 func (d agentRuleDetector) RuleID() string                    { return d.rule.ID }
 func (d agentRuleDetector) Category() models.DetectorCategory { return d.rule.Category }
 func (d agentRuleDetector) Applies(a models.AgentDef) bool {
+	if d.rule.Language != "" && d.rule.Language != a.Language {
+		return false
+	}
 	for _, k := range d.rule.AppliesTo {
 		if agentKindMatches(k, a) {
 			return true
