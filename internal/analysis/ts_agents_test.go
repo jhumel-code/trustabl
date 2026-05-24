@@ -45,3 +45,38 @@ const q = query({
 		t.Errorf("Kwargs.description missing: %+v", a.Kwargs)
 	}
 }
+
+func TestDiscoverTSAgents_TypedConst(t *testing.T) {
+	src := `
+import { AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
+
+const reviewer: AgentDefinition = {
+  description: "Code review specialist",
+  prompt: "You are a code reviewer..."
+};
+
+export const auditor: AgentDefinition = {
+  description: "Auditor",
+  prompt: "Audit"
+};
+`
+	pf := parseTSForTest(t, "src/a.ts", src)
+	agents := analysis.DiscoverTSAgents([]analysis.ParsedFile{pf}, nil)
+	if len(agents) != 2 {
+		t.Fatalf("got %d agents, want 2: %+v", len(agents), agents)
+	}
+	names := map[string]bool{agents[0].Name: true, agents[1].Name: true}
+	for _, want := range []string{"reviewer", "auditor"} {
+		if !names[want] {
+			t.Errorf("missing agent %q in %+v", want, names)
+		}
+	}
+	for _, a := range agents {
+		if a.VarName != a.Name {
+			t.Errorf("agent %q: VarName=%q, want same as Name", a.Name, a.VarName)
+		}
+		if a.Language != models.LanguageTypeScript {
+			t.Errorf("Language: got %q", a.Language)
+		}
+	}
+}

@@ -1,6 +1,8 @@
 package analysis
 
 import (
+	"strings"
+
 	sitter "github.com/smacker/go-tree-sitter"
 
 	"github.com/trustabl/trustabl/internal/analysis/astutil"
@@ -32,8 +34,15 @@ func discoverTSAgentsInFile(pf ParsedFile) []models.AgentDef {
 	}
 	var out []models.AgentDef
 	astutil.Walk(pf.Tree.RootNode(), func(n *sitter.Node) bool {
-		if n.Type() == "call_expression" && astutil.TSCalleeText(n, pf.Source, aliases) == "query" {
-			out = append(out, extractInlineAgentsFromQuery(n, pf)...)
+		switch n.Type() {
+		case "call_expression":
+			if astutil.TSCalleeText(n, pf.Source, aliases) == "query" {
+				out = append(out, extractInlineAgentsFromQuery(n, pf)...)
+			}
+		case "variable_declarator":
+			if a, ok := extractTypedConstAgent(n, pf); ok {
+				out = append(out, a)
+			}
 		}
 		return true
 	})
@@ -128,4 +137,31 @@ func getObjectProperty(obj *sitter.Node, key string, src []byte) *sitter.Node {
 		}
 	}
 	return nil
+}
+
+func extractTypedConstAgent(decl *sitter.Node, pf ParsedFile) (models.AgentDef, bool) {
+	nameNode := decl.ChildByFieldName("name")
+	typeNode := decl.ChildByFieldName("type")
+	valueNode := decl.ChildByFieldName("value")
+	if nameNode == nil || typeNode == nil || valueNode == nil {
+		return models.AgentDef{}, false
+	}
+	if nameNode.Type() != "identifier" || valueNode.Type() != "object" {
+		return models.AgentDef{}, false
+	}
+	// type field text looks like ": AgentDefinition" — substring check.
+	if !strings.Contains(astutil.NodeText(typeNode, pf.Source), "AgentDefinition") {
+		return models.AgentDef{}, false
+	}
+	name := astutil.NodeText(nameNode, pf.Source)
+	return models.AgentDef{
+		SDK:      models.SDKClaudeAgentSDK,
+		Class:    "AgentDefinition",
+		Language: models.LanguageTypeScript,
+		FilePath: pf.RelPath,
+		Line:     int(decl.StartPoint().Row) + 1,
+		Name:     name,
+		VarName:  name,
+		Kwargs:   astutil.TSObjectKwargs(valueNode, pf.Source),
+	}, true
 }
