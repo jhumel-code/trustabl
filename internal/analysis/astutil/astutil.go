@@ -225,6 +225,37 @@ func HasKwarg(call *sitter.Node, src []byte, name string) bool {
 	return found
 }
 
+// KwargValue returns the value-node text of the named keyword argument in a
+// call's argument list, and whether the kwarg is present at all.
+//
+//	present=false              -> kwarg absent
+//	present=true, value="None" -> kwarg present with literal None
+//	present=true, value="10"   -> kwarg present with value 10
+func KwargValue(call *sitter.Node, src []byte, name string) (value string, present bool) {
+	args := call.ChildByFieldName("arguments")
+	if args == nil {
+		return "", false
+	}
+	Walk(args, func(n *sitter.Node) bool {
+		if present {
+			return false
+		}
+		if n.Type() != "keyword_argument" {
+			return true
+		}
+		k := n.ChildByFieldName("name")
+		if k != nil && NodeText(k, src) == name {
+			present = true
+			if v := n.ChildByFieldName("value"); v != nil {
+				value = NodeText(v, src)
+			}
+			return false
+		}
+		return true
+	})
+	return value, present
+}
+
 // FunctionHasTypedParams reports whether the function declares at least one
 // type-annotated parameter (excluding self/cls).
 func FunctionHasTypedParams(fn *sitter.Node) bool {
