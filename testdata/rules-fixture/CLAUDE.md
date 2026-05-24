@@ -68,6 +68,7 @@ against. Pick values from the table for the scope you're targeting.
 | `claude_sdk_tool`    | `@tool` / `@claude_tool` / `claude_agent_sdk` |
 | `mcp_tool`           | `@server.tool`, `@mcp.tool`, `.register_tool` |
 | `shell_invocation`   | Bare function that calls `subprocess.*` etc. (no rules currently target this — OSH-* moved to a closed-source project) |
+| `adk_function_tool`  | `FunctionTool(fn)` wrapping a Python function (Google ADK) |
 
 **`scope: agent`** — receives an `AgentDef`; `applies_to` is matched against
 `AgentDef.Class` + `AgentDef.SDK`:
@@ -77,6 +78,11 @@ against. Pick values from the table for the scope you're targeting.
 | `openai_agent`            | `Agent(...)` from `openai-agents` SDK                         |
 | `openai_sandbox_agent`    | `SandboxAgent(...)` from `openai-agents` SDK                  |
 | `claude_agent_definition` | `AgentDefinition(...)` from `claude-agent-sdk`                |
+| `adk_llm_agent`           | `LlmAgent(...)` / `Agent(...)` alias from `google-adk`        |
+| `adk_sequential_agent`    | `SequentialAgent(...)` from `google-adk`                      |
+| `adk_parallel_agent`      | `ParallelAgent(...)` from `google-adk`                        |
+| `adk_loop_agent`          | `LoopAgent(...)` from `google-adk`                            |
+| `adk_langgraph_agent`     | `LanggraphAgent(...)` from `google-adk`                       |
 
 **`scope: repo`** — receives `RepoProfile` + `RepoInventory`. `applies_to`
 at this scope is matched against a fixed token list (the loader's
@@ -89,6 +95,7 @@ SDK enum values used by the `repo_has_sdk_in_code` predicate:
 | `openai_agents`    | OpenAI Agents SDK                    |
 | `openshell`        | NVIDIA OpenShell SDK (no rules currently target this — OSH-* moved to a closed-source project) |
 | `mcp`              | Model Context Protocol               |
+| `google_adk`       | Google ADK (Python)                  |
 
 Repo-scope rules typically combine `applies_to` with a `repo_has_sdk_in_code`
 predicate to narrow firing to repos that actually use the SDK in code (e.g.
