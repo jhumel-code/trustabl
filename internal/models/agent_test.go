@@ -62,3 +62,21 @@ func TestAgentDef_Language_RoundTripsThroughJSON(t *testing.T) {
 	}
 }
 
+func TestMCPServerDef_Language_RoundTripsThroughJSON(t *testing.T) {
+	m := models.MCPServerDef{
+		Class:     "McpStdioServerConfig",
+		Transport: "stdio",
+		SDK:       models.SDKClaudeAgentSDK,
+		Language:  models.LanguageTypeScript,
+		FilePath:  "src/server.ts",
+		Line:      5,
+	}
+	data, err := json.Marshal(m)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"language":"typescript"`) {
+		t.Errorf("JSON missing language: %s", data)
+	}
+}
+
