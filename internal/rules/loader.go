@@ -64,10 +64,11 @@ func Load(fsys fs.FS) ([]PolicyFile, error) {
 		}
 		if pf.Policy.Category != "" {
 			switch pf.Policy.Category {
-			case models.CategoryClaudeSDK, models.CategoryOpenAISDK, models.CategoryOpenShell:
+			case models.CategoryClaudeSDK, models.CategoryOpenAISDK,
+				models.CategoryOpenShell, models.CategoryGoogleADK:
 				// valid
 			default:
-				errs = append(errs, fmt.Errorf("%s: unknown category %q (allowed: claude_sdk, openai_sdk, openshell)", name, pf.Policy.Category))
+				errs = append(errs, fmt.Errorf("%s: unknown category %q (allowed: claude_sdk, openai_sdk, openshell, google_adk)", name, pf.Policy.Category))
 			}
 		}
 		if len(errs) > policyErrCount {
@@ -159,17 +160,20 @@ func validAppliesToForScope(scope models.Scope, kind string) bool {
 	switch scope {
 	case models.ScopeTool:
 		switch kind {
-		case "claude_sdk_tool", "openai_tool", "mcp_tool", "shell_invocation", "unknown":
+		case "claude_sdk_tool", "openai_tool", "mcp_tool",
+			"shell_invocation", "unknown", "adk_function_tool":
 			return true
 		}
 	case models.ScopeAgent:
 		switch kind {
-		case "openai_agent", "openai_sandbox_agent", "claude_agent_definition":
+		case "openai_agent", "openai_sandbox_agent", "claude_agent_definition",
+			"adk_llm_agent", "adk_sequential_agent", "adk_parallel_agent",
+			"adk_loop_agent", "adk_langgraph_agent":
 			return true
 		}
 	case models.ScopeRepo:
 		switch kind {
-		case "claude_sdk", "openai_agents", "openshell", "mcp":
+		case "claude_sdk", "openai_agents", "openshell", "mcp", "google_adk":
 			return true
 		}
 	}
