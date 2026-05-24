@@ -30,11 +30,16 @@ func Score(tools []models.ToolDef, findings []models.Finding) ([]models.ToolRead
 		byTool[t.Name] = &models.ToolReadiness{ToolName: t.Name, Score: 1.0}
 	}
 	for _, f := range findings {
+		// Only tool-scoped findings count toward per-tool readiness. Findings
+		// without a ToolName, or with a ToolName that doesn't match any
+		// discovered tool, are agent-scoped, repo-scoped, or META — they have
+		// their own attribution in the findings list and don't belong in
+		// per-tool buckets. Aggregating them under a blank-name "tool" used
+		// to surface as a confusing empty row in the readiness table and
+		// dragged the overall score for non-tool reasons.
 		r, ok := byTool[f.ToolName]
 		if !ok {
-			// Findings against tools we didn't list — shouldn't happen, but be safe.
-			r = &models.ToolReadiness{ToolName: f.ToolName, Score: 1.0}
-			byTool[f.ToolName] = r
+			continue
 		}
 		r.FindingCount++
 		r.WeightedSeverity += models.SeverityWeight(f.Severity) * f.Confidence
