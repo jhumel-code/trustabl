@@ -290,9 +290,9 @@ const q = query({
 	}
 }
 
-func TestDiscoverTSAgents_QueryMainAgent_NoNameWhenInForOfLoop(t *testing.T) {
-	// for-await-of binds `m`, not the query() call. The main agent has no
-	// enclosing variable_declarator, so Name should be "".
+func TestDiscoverTSAgents_QueryMainAgent_NameFromEnclosingFunction(t *testing.T) {
+	// for-await-of binds `m`, not the query() call. When no const binding
+	// exists, fall back to the enclosing function name.
 	src := `
 import { query } from "@anthropic-ai/claude-agent-sdk";
 
@@ -305,7 +305,73 @@ async function run() {
 	if len(agents) != 1 {
 		t.Fatalf("got %d, want 1: %+v", len(agents), agents)
 	}
-	if agents[0].Name != "" {
-		t.Errorf("Name: got %q want \"\" (no assignment target)", agents[0].Name)
+	if agents[0].Name != "run" {
+		t.Errorf("Name: got %q want \"run\" (enclosing function)", agents[0].Name)
+	}
+}
+
+func TestDiscoverTSAgents_QueryMainAgent_NameFromClassMethod(t *testing.T) {
+	// Real-world shape from examples/email-agent/ccsdk/ai-client.ts:
+	// query() is inside a method of a class. Name should be Class.method.
+	src := `
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+class AIClient {
+  async *queryStream(prompt: string) {
+    for await (const m of query({ prompt, options: {} })) {
+      yield m;
+    }
+  }
+}
+`
+	pf := parseTSForTest(t, "src/ai-client.ts", src)
+	agents := analysis.DiscoverTSAgents([]analysis.ParsedFile{pf}, nil)
+	if len(agents) != 1 {
+		t.Fatalf("got %d, want 1: %+v", len(agents), agents)
+	}
+	if agents[0].Name != "AIClient.queryStream" {
+		t.Errorf("Name: got %q want \"AIClient.queryStream\"", agents[0].Name)
+	}
+}
+
+func TestDiscoverTSAgents_QueryMainAgent_AllowedToolsFallbackWhenOpaque(t *testing.T) {
+	// The common real-world shape: allowedTools is defined in a class field
+	// or constant elsewhere in the file, options is computed at the query()
+	// call site. Even though options is opaque, the file-scoped fallback
+	// surfaces the agent's tool permissions as ToolRefs.
+	src := `
+import { query } from "@anthropic-ai/claude-agent-sdk";
+
+class AIClient {
+  defaults = {
+    allowedTools: ["Bash", "Read", "mcp__email__search_inbox"]
+  };
+  async *run(p: string) {
+    const merged = { ...this.defaults };
+    for await (const m of query({ prompt: p, options: merged })) { yield m; }
+  }
+}
+`
+	pf := parseTSForTest(t, "src/ai-client.ts", src)
+	agents := analysis.DiscoverTSAgents([]analysis.ParsedFile{pf}, nil)
+	if len(agents) != 1 {
+		t.Fatalf("got %d, want 1: %+v", len(agents), agents)
+	}
+	a := agents[0]
+	if !a.Opaque {
+		t.Errorf("expected Opaque=true (options is computed), got false")
+	}
+	if len(a.ToolRefs) != 3 {
+		t.Fatalf("ToolRefs: got %d, want 3 from file-scoped allowedTools: %+v", len(a.ToolRefs), a.ToolRefs)
+	}
+	want := map[string]bool{"Bash": true, "Read": true, "mcp__email__search_inbox": true}
+	for _, r := range a.ToolRefs {
+		if !want[r.Name] {
+			t.Errorf("unexpected ToolRef %q", r.Name)
+		}
+		delete(want, r.Name)
+	}
+	if len(want) > 0 {
+		t.Errorf("missing ToolRefs: %v", want)
 	}
 }

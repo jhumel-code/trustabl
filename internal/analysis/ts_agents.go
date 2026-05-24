@@ -97,8 +97,11 @@ func extractQueryMainAgent(call *sitter.Node, pf ParsedFile) models.AgentDef {
 	}
 	if options.Type() != "object" {
 		// Common real-world case: query({prompt, options: mergedOptions}).
-		// We can read prompt at root but options.* is hidden.
+		// We can read prompt at root but options.* is hidden. Fall back to
+		// a file-scoped scan for allowedTools so the agent's permission
+		// surface isn't invisible.
 		agent.Opaque = true
+		populateTSMainAgentToolRefsFromFile(&agent, pf)
 		return agent
 	}
 	// Inline options — extract ToolRefs from options.allowedTools (note: the
@@ -110,13 +113,26 @@ func extractQueryMainAgent(call *sitter.Node, pf ParsedFile) models.AgentDef {
 	return agent
 }
 
-// extractQueryAssignmentName returns the binding name when the call is the
-// RHS of a `const X = query(...)` (or `let X = ...`) declaration, else "".
-// Walks through any wrapping parenthesized_expression but stops at the first
-// non-parenthesis parent — we only want the IMMEDIATE assignment target,
-// not some distant enclosing scope (e.g. inside a for-await-of, the bound
-// loop variable is not the query's name).
+// extractQueryAssignmentName returns a useful identifier for a query() main
+// agent. Tries in order:
+//   1. Immediate `const X = query(...)` (or let/var) binding → "X".
+//   2. Enclosing function/method declaration → "fn" or "Class.method".
+//   3. "" if neither applies (e.g. top-level for-await-of in module scope).
+//
+// Walks through wrapping parenthesized_expression for case 1. For case 2,
+// walks up the AST stopping at the first function_declaration,
+// generator_function_declaration, or method_definition. For method_definition,
+// prepends the enclosing class name when one exists.
 func extractQueryAssignmentName(call *sitter.Node, src []byte) string {
+	// Case 1: `const X = query(...)`.
+	if name := directAssignmentName(call, src); name != "" {
+		return name
+	}
+	// Case 2: enclosing named function/method.
+	return enclosingFunctionName(call, src)
+}
+
+func directAssignmentName(call *sitter.Node, src []byte) string {
 	parent := call.Parent()
 	for parent != nil && parent.Type() == "parenthesized_expression" {
 		parent = parent.Parent()
@@ -131,17 +147,117 @@ func extractQueryAssignmentName(call *sitter.Node, src []byte) string {
 	return astutil.NodeText(nameNode, src)
 }
 
+func enclosingFunctionName(node *sitter.Node, src []byte) string {
+	for cur := node.Parent(); cur != nil; cur = cur.Parent() {
+		switch cur.Type() {
+		case "function_declaration", "generator_function_declaration":
+			n := cur.ChildByFieldName("name")
+			if n != nil {
+				return astutil.NodeText(n, src)
+			}
+			return ""
+		case "method_definition":
+			n := cur.ChildByFieldName("name")
+			if n == nil {
+				return ""
+			}
+			mname := astutil.NodeText(n, src)
+			if cname := enclosingClassName(cur, src); cname != "" {
+				return cname + "." + mname
+			}
+			return mname
+		}
+	}
+	return ""
+}
+
+func enclosingClassName(node *sitter.Node, src []byte) string {
+	for cur := node.Parent(); cur != nil; cur = cur.Parent() {
+		if cur.Type() == "class_declaration" {
+			n := cur.ChildByFieldName("name")
+			if n != nil {
+				return astutil.NodeText(n, src)
+			}
+			return ""
+		}
+	}
+	return ""
+}
+
 // populateTSMainAgentToolRefs reads options.allowedTools (a list of string
 // literals naming Claude Code builtins) and appends one ToolRef per entry.
 // The main agent uses "allowedTools"; sub-agent AgentDefinitions use "tools"
 // (handled by populateTSAgentToolRefs).
 func populateTSMainAgentToolRefs(a *models.AgentDef, options *sitter.Node, src []byte) {
 	toolsNode := getObjectProperty(options, "allowedTools", src)
-	if toolsNode == nil || toolsNode.Type() != "array" {
+	collectStringArrayIntoToolRefs(a, toolsNode, src)
+}
+
+// populateTSMainAgentToolRefsFromFile is the opaque-options fallback. The
+// common real-world shape stores options in a class field or named const,
+// then references it via identifier at the query() call site (e.g.
+// `query({prompt, options: this.defaultOptions})`). When that happens we
+// can't read options.allowedTools from the call site, but the array is
+// usually a literal SOMEWHERE in the same file. Scan for any
+// `allowedTools: [<string-literals>]` pair anywhere in the file and union
+// the strings into the agent's ToolRefs. Heuristic — may over-extract if
+// the file has multiple unrelated allowedTools arrays, but that's rare in
+// real TS Claude SDK code.
+func populateTSMainAgentToolRefsFromFile(a *models.AgentDef, pf ParsedFile) {
+	if pf.Tree == nil {
 		return
 	}
-	for i := 0; i < int(toolsNode.NamedChildCount()); i++ {
-		item := toolsNode.NamedChild(i)
+	seen := map[string]bool{}
+	astutil.Walk(pf.Tree.RootNode(), func(n *sitter.Node) bool {
+		if n.Type() != "pair" {
+			return true
+		}
+		k := n.ChildByFieldName("key")
+		v := n.ChildByFieldName("value")
+		if k == nil || v == nil {
+			return true
+		}
+		var keyName string
+		switch k.Type() {
+		case "property_identifier":
+			keyName = astutil.NodeText(k, pf.Source)
+		case "string":
+			raw := astutil.NodeText(k, pf.Source)
+			if len(raw) >= 2 {
+				keyName = raw[1 : len(raw)-1]
+			}
+		}
+		if keyName != "allowedTools" || v.Type() != "array" {
+			return true
+		}
+		for i := 0; i < int(v.NamedChildCount()); i++ {
+			item := v.NamedChild(i)
+			if item.Type() != "string" {
+				continue
+			}
+			raw := astutil.NodeText(item, pf.Source)
+			if len(raw) < 2 {
+				continue
+			}
+			name := raw[1 : len(raw)-1]
+			if seen[name] {
+				continue
+			}
+			seen[name] = true
+			a.ToolRefs = append(a.ToolRefs, models.ToolRef{Name: name})
+		}
+		return true
+	})
+}
+
+// collectStringArrayIntoToolRefs appends one ToolRef per string-literal item
+// in an array node. Used by the inline-options path.
+func collectStringArrayIntoToolRefs(a *models.AgentDef, arr *sitter.Node, src []byte) {
+	if arr == nil || arr.Type() != "array" {
+		return
+	}
+	for i := 0; i < int(arr.NamedChildCount()); i++ {
+		item := arr.NamedChild(i)
 		if item.Type() != "string" {
 			continue
 		}
