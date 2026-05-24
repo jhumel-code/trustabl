@@ -37,6 +37,11 @@ func discoverTSAgentsInFile(pf ParsedFile) []models.AgentDef {
 		switch n.Type() {
 		case "call_expression":
 			if astutil.TSCalleeText(n, pf.Source, aliases) == "query" {
+				// Emit ONE QueryMainAgent for the query() call itself —
+				// the TS SDK has no AgentDefinition for the main thread,
+				// so the call site IS the agent's declaration. Then also
+				// emit any inline-in-options.agents sub-agents.
+				out = append(out, extractQueryMainAgent(n, pf))
 				out = append(out, extractInlineAgentsFromQuery(n, pf)...)
 			}
 		case "variable_declarator":
@@ -47,6 +52,105 @@ func discoverTSAgentsInFile(pf ParsedFile) []models.AgentDef {
 		return true
 	})
 	return out
+}
+
+// extractQueryMainAgent emits one AgentDef representing the main thread of
+// a query() call. The TS Claude Agent SDK does not provide an AgentDefinition
+// constructor for the main thread — the query({prompt, options}) call IS the
+// main agent's declaration. Class is "QueryMainAgent" so SP2 rules can target
+// this distinct shape (vs the "AgentDefinition" sub-agent shape).
+//
+// Opaque=true when arg 0 (or its options field) is not an inline object
+// literal, e.g. query(getOptions()) or query({prompt, options: computed}).
+// Real-world TS Claude SDK code commonly builds options via spread / class
+// fields, so opaque is the common case.
+func extractQueryMainAgent(call *sitter.Node, pf ParsedFile) models.AgentDef {
+	name := extractQueryAssignmentName(call, pf.Source)
+	agent := models.AgentDef{
+		SDK:      models.SDKClaudeAgentSDK,
+		Class:    "QueryMainAgent",
+		Language: models.LanguageTypeScript,
+		FilePath: pf.RelPath,
+		Line:     int(call.StartPoint().Row) + 1,
+		Name:     name,
+		VarName:  name,
+	}
+	args := call.ChildByFieldName("arguments")
+	if args == nil || args.NamedChildCount() < 1 {
+		agent.Opaque = true
+		return agent
+	}
+	root := args.NamedChild(0)
+	if root.Type() != "object" {
+		// query(getOptions()) — arg 0 itself is a call/identifier/spread.
+		agent.Opaque = true
+		return agent
+	}
+	// Capture root as Kwargs — gives rules visibility into root.prompt plus
+	// root.options.* (as a nested KwargTree) when both are inline.
+	agent.Kwargs = astutil.TSObjectKwargs(root, pf.Source)
+	options := getObjectProperty(root, "options", pf.Source)
+	if options == nil {
+		// query({prompt: "..."}) with no options block — that's fine, the
+		// main agent uses SDK defaults. Not opaque; just no options to read.
+		return agent
+	}
+	if options.Type() != "object" {
+		// Common real-world case: query({prompt, options: mergedOptions}).
+		// We can read prompt at root but options.* is hidden.
+		agent.Opaque = true
+		return agent
+	}
+	// Inline options — extract ToolRefs from options.allowedTools (note: the
+	// main agent uses "allowedTools", not "tools"; the latter is the
+	// AgentDefinition sub-agent field) and MCPServerRefs from
+	// options.mcpServers.
+	populateTSMainAgentToolRefs(&agent, options, pf.Source)
+	agent.MCPServerRefs = extractTSMCPServerRefs(options, pf)
+	return agent
+}
+
+// extractQueryAssignmentName returns the binding name when the call is the
+// RHS of a `const X = query(...)` (or `let X = ...`) declaration, else "".
+// Walks through any wrapping parenthesized_expression but stops at the first
+// non-parenthesis parent — we only want the IMMEDIATE assignment target,
+// not some distant enclosing scope (e.g. inside a for-await-of, the bound
+// loop variable is not the query's name).
+func extractQueryAssignmentName(call *sitter.Node, src []byte) string {
+	parent := call.Parent()
+	for parent != nil && parent.Type() == "parenthesized_expression" {
+		parent = parent.Parent()
+	}
+	if parent == nil || parent.Type() != "variable_declarator" {
+		return ""
+	}
+	nameNode := parent.ChildByFieldName("name")
+	if nameNode == nil || nameNode.Type() != "identifier" {
+		return ""
+	}
+	return astutil.NodeText(nameNode, src)
+}
+
+// populateTSMainAgentToolRefs reads options.allowedTools (a list of string
+// literals naming Claude Code builtins) and appends one ToolRef per entry.
+// The main agent uses "allowedTools"; sub-agent AgentDefinitions use "tools"
+// (handled by populateTSAgentToolRefs).
+func populateTSMainAgentToolRefs(a *models.AgentDef, options *sitter.Node, src []byte) {
+	toolsNode := getObjectProperty(options, "allowedTools", src)
+	if toolsNode == nil || toolsNode.Type() != "array" {
+		return
+	}
+	for i := 0; i < int(toolsNode.NamedChildCount()); i++ {
+		item := toolsNode.NamedChild(i)
+		if item.Type() != "string" {
+			continue
+		}
+		raw := astutil.NodeText(item, src)
+		if len(raw) < 2 {
+			continue
+		}
+		a.ToolRefs = append(a.ToolRefs, models.ToolRef{Name: raw[1 : len(raw)-1]})
+	}
 }
 
 func extractInlineAgentsFromQuery(call *sitter.Node, pf ParsedFile) []models.AgentDef {

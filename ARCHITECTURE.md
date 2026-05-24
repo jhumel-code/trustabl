@@ -569,9 +569,16 @@ RepoInventory {
 
 AgentDef {
     SDK, Class, FilePath string; Line, EndLine int
+    // Class values: "Agent" / "SandboxAgent" (OpenAI),
+    //   "AgentDefinition" (Claude Python constructor + Claude TS sub-agents),
+    //   "QueryMainAgent" (Claude TS: main thread of a query() call — the TS
+    //     SDK has no AgentDefinition constructor for the main thread, so the
+    //     query() call site IS the declaration),
+    //   "LlmAgent" / "SequentialAgent" / "ParallelAgent" / "LoopAgent" /
+    //     "LanggraphAgent" (ADK).
     Language       Language       // python | typescript
-    Name           string         // from name= kwarg literal
-    Kwargs         *KwargTree     // all constructor kwargs, typed
+    Name           string         // from name= kwarg literal; for TS QueryMainAgent: the `const X = query(...)` binding name if present, else ""
+    Kwargs         *KwargTree     // all constructor kwargs, typed; for TS QueryMainAgent: the full root arg of query() (prompt at top level, options.* nested)
     ToolRefs       []ToolRef      // resolved to ToolDef or flagged External
     HostedToolRefs []HostedToolRef
     MCPServerRefs  []MCPServerRef

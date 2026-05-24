@@ -48,7 +48,7 @@ type GuardrailRef struct {
 // AgentDef is one discovered agent declaration in the repo.
 type AgentDef struct {
 	SDK            SDK             `json:"sdk"`
-	Class          string          `json:"class"`    // "Agent", "SandboxAgent", "AgentDefinition"
+	Class          string          `json:"class"`    // "Agent", "SandboxAgent", "AgentDefinition", "QueryMainAgent" (TS: main thread of a query() call), or one of the ADK Class values
 	Language       Language        `json:"language"` // populated by every discovery path
 	FilePath       string          `json:"file_path"`
 	Line           int             `json:"line"`

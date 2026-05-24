@@ -21,7 +21,7 @@ Legend: ✅ full · ◐ partial · ❌ none · — N/A
 | SDK | Language | Scanning | Analysis (AST discovery) | Detection rules |
 |---|---|---|---|---|
 | **Claude Agent SDK** | Python | ✅ dep-scan + file inventory + `.claude/` components | ✅ tools, agents, subagents, settings | ✅ CSDK-001..007 (tool), CSDK-101 (agent) |
-| **Claude Agent SDK** | TypeScript | ✅ dep-scan (`@anthropic-ai/claude-agent-sdk`) + file inventory + `.claude/` components | ✅ tools (`tool()` factory), agents (inline-in-query + typed-const), MCP servers (createSdkMcpServer + 4 config literals) | ❌ no TS rules yet (SP2) — META-004 fires |
+| **Claude Agent SDK** | TypeScript | ✅ dep-scan (`@anthropic-ai/claude-agent-sdk`) + file inventory + `.claude/` components | ✅ tools (`tool()` factory), agents (main thread `QueryMainAgent` per `query()` call + sub-agents inline-in-query + typed-const `AgentDefinition`), MCP servers (createSdkMcpServer + 4 config literals) | ❌ no TS rules yet (SP2) — META-004 fires |
 | **OpenAI Agents SDK** | Python | ✅ dep-scan + file inventory | ✅ tools, hosted tools (11 classes), agents, MCP servers (3 transports + alias), guardrails, sessions | ✅ OAI-001..006 (tool), OAI-101..105 (agent), OAI-201 (repo) |
 | **OpenAI Agents SDK** | TypeScript | ◐ file inventory only | ❌ no TS AST parser | ❌ |
 | **MCP** | Python | ✅ tool registrations + config files | ◐ tool registrations only (no server-side resource/prompt discovery) | ❌ no dedicated pack (KindMCPTool is reachable by some CSDK rules' `applies_to`) |
@@ -55,8 +55,9 @@ namespace `* as`, and default imports).
 | Construct | Recognition |
 |---|---|
 | Tools | `tool(name, description, zodSchema, handler, extras?)` factory calls. Captures: name (arg 0), description (arg 1), Zod schema top-level keys as ParamNames, handler body facts (`shells_out`, `http_call`), extras flattened into Config |
-| Agents (inline) | Each property inside `query({options: {agents: {...}}})`. Property key becomes `Name`; value object becomes `Kwargs` |
-| Agents (typed-const) | `const x: AgentDefinition = {...}` (and `export const ...`). `Name=VarName=constName`; value object becomes `Kwargs` |
+| Agents (main thread) | Every `query({prompt, options?})` call emits one `AgentDef` with `Class="QueryMainAgent"`. The TS SDK has no `AgentDefinition` constructor for the main thread — the call site IS the declaration. `Name` is the `const X = query(...)` binding if present, else `""`. `Opaque=true` when `options` is a computed identifier (the typical real-world shape, e.g. `query({prompt, options: mergedOptions})`); inline `options` populates `Kwargs` plus `ToolRefs` (from `options.allowedTools`) and `MCPServerRefs` (from `options.mcpServers`) |
+| Agents (sub-agents inline) | Each property inside `query({options: {agents: {...}}})`. Property key becomes `Name`; `Class="AgentDefinition"`; value object becomes `Kwargs` |
+| Agents (sub-agents typed-const) | `const x: AgentDefinition = {...}` (and `export const ...`). `Name=VarName=constName`; `Class="AgentDefinition"`; value object becomes `Kwargs` |
 | MCP servers | `createSdkMcpServer({...})` → `Class="createSdkMcpServer"`, `Transport="sdk"`. Object literals in `options.mcpServers` discriminated by `type:` → one of `McpStdioServerConfig`/`McpSSEServerConfig`/`McpHttpServerConfig`/`McpSdkServerConfigWithInstance` |
 | Tool refs | `agent.tools=["Read","Bash",…]` strings populate `AgentDef.ToolRefs` |
 | MCP refs | Each property in `agent.options.mcpServers` populates `AgentDef.MCPServerRefs` (inline-object values → class from `type:`; identifier values → `Class="createSdkMcpServer"`) |

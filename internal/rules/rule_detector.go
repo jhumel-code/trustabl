@@ -84,6 +84,8 @@ func agentKindMatches(kind string, a models.AgentDef) bool {
 		return a.SDK == models.SDKOpenAIAgents && a.Class == "SandboxAgent"
 	case "claude_agent_definition":
 		return a.SDK == models.SDKClaudeAgentSDK && a.Class == "AgentDefinition"
+	case "claude_query_main":
+		return a.SDK == models.SDKClaudeAgentSDK && a.Class == "QueryMainAgent"
 	case "adk_llm_agent":
 		return a.SDK == models.SDKGoogleADK && a.Class == "LlmAgent"
 	case "adk_sequential_agent":
