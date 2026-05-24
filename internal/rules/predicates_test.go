@@ -597,3 +597,123 @@ func TestPredRepoUsesDefaultTracing(t *testing.T) {
 		t.Error("expected default tracing = false after custom processor")
 	}
 }
+
+func TestPredAgentUsesHostedToolClass(t *testing.T) {
+	bashRef := models.HostedToolRef{
+		Class:    "BashTool",
+		Resolved: &models.HostedToolDef{Class: "BashTool"},
+	}
+	webRef := models.HostedToolRef{
+		Class:    "WebSearchTool",
+		Resolved: &models.HostedToolDef{Class: "WebSearchTool"},
+	}
+	cases := []struct {
+		name    string
+		agent   models.AgentDef
+		classes []string
+		want    bool
+	}{
+		{
+			name:    "matches single class",
+			agent:   models.AgentDef{HostedToolRefs: []models.HostedToolRef{bashRef}},
+			classes: []string{"BashTool"},
+			want:    true,
+		},
+		{
+			name:    "matches one of many",
+			agent:   models.AgentDef{HostedToolRefs: []models.HostedToolRef{webRef, bashRef}},
+			classes: []string{"BashTool"},
+			want:    true,
+		},
+		{
+			name:    "no match",
+			agent:   models.AgentDef{HostedToolRefs: []models.HostedToolRef{webRef}},
+			classes: []string{"BashTool"},
+			want:    false,
+		},
+		{
+			name:    "unresolved ref still matches by class name",
+			agent:   models.AgentDef{HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}}},
+			classes: []string{"BashTool"},
+			want:    true,
+		},
+		{
+			name:    "no refs",
+			agent:   models.AgentDef{},
+			classes: []string{"BashTool"},
+			want:    false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := rules.PredAgentUsesHostedToolClass(c.classes, c.agent)
+			if got != c.want {
+				t.Errorf("got %v, want %v", got, c.want)
+			}
+		})
+	}
+}
+
+// ─── agent_is_subagent_of_any ─────────────────────────────────────────────────
+
+func TestPredAgentIsSubagentOfAny(t *testing.T) {
+	childResolved := &models.AgentDef{Name: "child", FilePath: "main.py"}
+	parent := models.AgentDef{
+		Name:     "parent",
+		FilePath: "main.py",
+		Class:    "LlmAgent",
+		SDK:      models.SDKGoogleADK,
+		HandoffRefs: []models.AgentRef{
+			{Name: "child", Resolved: childResolved},
+		},
+	}
+	selfParent := models.AgentDef{
+		Name:     "selfparent",
+		FilePath: "main.py",
+		Class:    "LlmAgent",
+		SDK:      models.SDKGoogleADK,
+		HandoffRefs: []models.AgentRef{
+			{Name: "selfparent", Resolved: &models.AgentDef{Name: "selfparent", FilePath: "main.py"}},
+		},
+	}
+
+	cases := []struct {
+		name  string
+		agent models.AgentDef
+		inv   models.RepoInventory
+		want  bool
+	}{
+		{
+			name:  "child appears in parent's HandoffRefs",
+			agent: models.AgentDef{Name: "child", FilePath: "main.py"},
+			inv:   models.RepoInventory{Agents: []models.AgentDef{parent}},
+			want:  true,
+		},
+		{
+			name:  "unrelated agent is not anyone's subagent",
+			agent: models.AgentDef{Name: "unrelated", FilePath: "main.py"},
+			inv:   models.RepoInventory{Agents: []models.AgentDef{parent}},
+			want:  false,
+		},
+		{
+			name:  "self-handoff edge case — still true",
+			agent: models.AgentDef{Name: "selfparent", FilePath: "main.py"},
+			inv:   models.RepoInventory{Agents: []models.AgentDef{selfParent}},
+			want:  true,
+		},
+		{
+			name:  "empty inventory",
+			agent: models.AgentDef{Name: "child", FilePath: "main.py"},
+			inv:   models.RepoInventory{},
+			want:  false,
+		},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			got := rules.PredAgentIsSubagentOfAny(c.agent, c.inv)
+			if got != c.want {
+				t.Errorf("got %v, want %v", got, c.want)
+			}
+		})
+	}
+}

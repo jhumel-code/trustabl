@@ -571,6 +571,39 @@ func PredAgentHandoffToClass(classes []string, a models.AgentDef) bool {
 	return false
 }
 
+// PredAgentUsesHostedToolClass fires when the agent's HostedToolRefs include
+// any of the named classes. Matches by the Class string on the ref itself
+// (does not require Resolved), so unresolved hosted-tool refs still count.
+func PredAgentUsesHostedToolClass(classes []string, a models.AgentDef) bool {
+	for _, ref := range a.HostedToolRefs {
+		for _, want := range classes {
+			if ref.Class == want {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// PredAgentIsSubagentOfAny returns true if the agent under test appears as
+// a Resolved target in any other agent's HandoffRefs in the inventory.
+// Matching is by Name+FilePath (Resolved is a pointer to a specific def in
+// inv.Agents, so identity comparison would also work but is fragile across
+// re-slicing). Self-handoff edges count.
+func PredAgentIsSubagentOfAny(a models.AgentDef, inv models.RepoInventory) bool {
+	for _, other := range inv.Agents {
+		for _, ref := range other.HandoffRefs {
+			if ref.Resolved == nil {
+				continue
+			}
+			if ref.Resolved.Name == a.Name && ref.Resolved.FilePath == a.FilePath {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ─── repo predicates ──────────────────────────────────────────────────────────
 
 func PredRepoHasSDKDep(names []string, p models.RepoProfile) bool {

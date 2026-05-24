@@ -79,20 +79,43 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 		toolsKwarg := agentKwarg(a, "tools")
 		if toolsKwarg != nil && toolsKwarg.Value != nil && toolsKwarg.Value.Kind == models.ExprList {
 			for _, item := range toolsKwarg.Value.List {
-				// Hosted-tool call (e.g. WebSearchTool()) — emit a HostedToolDef
-				// and a HostedToolRef. These never resolve to a ToolDef.
-				if h, ok := classifyHostedToolCall(item, a.FilePath, a.Line); ok {
+				// Hosted-tool call (e.g. WebSearchTool(), BashTool()) — emit a
+				// HostedToolDef and a HostedToolRef. These never resolve to a
+				// ToolDef. Classification is dispatched by the agent's SDK: each
+				// SDK has its own closed class list (HostedToolClasses for OpenAI,
+				// ADKHostedToolClasses for Google ADK), consulted only against its
+				// own agents.
+				var (
+					h    models.HostedToolDef
+					isHT bool
+				)
+				switch a.SDK {
+				case models.SDKGoogleADK:
+					h, isHT = classifyADKHostedToolCall(item, a.FilePath, a.Line)
+				default:
+					h, isHT = classifyHostedToolCall(item, a.FilePath, a.Line)
+				}
+				if isHT {
 					inv.HostedTools = append(inv.HostedTools, h)
 					ref := models.HostedToolRef{Class: h.Class}
 					ref.Resolved = &inv.HostedTools[len(inv.HostedTools)-1]
 					a.HostedToolRefs = append(a.HostedToolRefs, ref)
 					continue
 				}
-				ref := models.ToolRef{Name: item.Text}
+				// ADK wraps user functions as FunctionTool(symbol); the
+				// registered ToolDef is keyed by the inner symbol, so unwrap
+				// before symbol resolution.
+				lookupName := item.Text
+				if a.SDK == models.SDKGoogleADK {
+					if inner, ok := adkFunctionToolArg(item.Text); ok {
+						lookupName = inner
+					}
+				}
+				ref := models.ToolRef{Name: lookupName}
 				var td *models.ToolDef
-				if t := toolsByFileSym[a.FilePath][item.Text]; t != nil {
+				if t := toolsByFileSym[a.FilePath][lookupName]; t != nil {
 					td = t
-				} else if imp, ok := importsByFile[a.FilePath][item.Text]; ok {
+				} else if imp, ok := importsByFile[a.FilePath][lookupName]; ok {
 					for _, candidateFile := range parsed {
 						if matchesModule(candidateFile.RelPath, imp.module) {
 							if cand := toolsByFileSym[candidateFile.RelPath][imp.name]; cand != nil {
@@ -154,6 +177,38 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 			// downstream rules. A future rule that needs an "MCP servers were
 			// declared but their identities are opaque" signal would set a
 			// dedicated flag on AgentDef, not reuse Opaque.
+		}
+
+		// sub_agents= (ADK delegation tree). Resolves same-file agent name refs
+		// into HandoffRefs for predicate uniformity with OpenAI's handoffs=.
+		if a.SDK == models.SDKGoogleADK {
+			subKwarg := agentKwarg(a, "sub_agents")
+			if subKwarg != nil && subKwarg.Value != nil && subKwarg.Value.Kind == models.ExprList {
+				agentsByName := map[string]*models.AgentDef{}
+				for j := range inv.Agents {
+					if inv.Agents[j].FilePath != a.FilePath {
+						continue
+					}
+					// Key by both the name= literal and the assignment-target
+					// variable, because sub_agents=[X] references the variable
+					// while findings attribute to the name= value.
+					if n := inv.Agents[j].Name; n != "" {
+						agentsByName[n] = &inv.Agents[j]
+					}
+					if v := inv.Agents[j].VarName; v != "" {
+						agentsByName[v] = &inv.Agents[j]
+					}
+				}
+				for _, item := range subKwarg.Value.List {
+					ref := models.AgentRef{Name: item.Text}
+					if target, ok := agentsByName[item.Text]; ok {
+						ref.Resolved = target
+					} else {
+						ref.External = true
+					}
+					a.HandoffRefs = append(a.HandoffRefs, ref)
+				}
+			}
 		}
 
 		resolveGuardKwarg(a, "input_guardrails", &a.InputGuards, guardsByFileSym[a.FilePath])

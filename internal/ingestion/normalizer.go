@@ -58,6 +58,8 @@ func detectSDKDeps(root string) []models.SDKDep {
 			Manifests: []string{"pyproject.toml", "requirements.txt", "Pipfile", "poetry.lock"}},
 		{Name: "openai-agents", Pattern: "@openai/agents",
 			Manifests: []string{"package.json"}},
+		{Name: "google-adk", Pattern: "google-adk",
+			Manifests: []string{"pyproject.toml", "requirements.txt", "Pipfile", "poetry.lock"}},
 	}
 	seen := make(map[string]bool)
 	var out []models.SDKDep

@@ -7,6 +7,7 @@ import (
 	"runtime"
 	"testing"
 
+	"github.com/trustabl/trustabl/internal/models"
 	"github.com/trustabl/trustabl/internal/scanner"
 )
 
@@ -66,6 +67,35 @@ func TestScanExamples_NoCrash(t *testing.T) {
 	}
 	if scanned == 0 {
 		t.Skip("examples/ has no scannable subdirectories")
+	}
+}
+
+func TestScan_GoogleADKDemoFiresExpectedRules(t *testing.T) {
+	_, thisFile, _, _ := runtime.Caller(0)
+	target := filepath.Join(filepath.Dir(thisFile), "..", "..", "examples", "google-adk-demo")
+	res, err := scanner.Run(scanner.Config{Target: target, RulesFS: rulesFixture(t)})
+	if err != nil {
+		t.Fatalf("scan: %v", err)
+	}
+
+	var sawADK bool
+	for _, s := range res.SDKs {
+		if s == models.SDKGoogleADK {
+			sawADK = true
+		}
+	}
+	if !sawADK {
+		t.Errorf("expected google_adk in ScanResult.SDKs, got %+v", res.SDKs)
+	}
+
+	fired := map[string]bool{}
+	for _, f := range res.Findings {
+		fired[f.RuleID] = true
+	}
+	for _, want := range []string{"ADK-001", "ADK-101", "ADK-102"} {
+		if !fired[want] {
+			t.Errorf("expected rule %s to fire on google-adk-demo; fired set: %v", want, fired)
+		}
 	}
 }
 

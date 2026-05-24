@@ -12,12 +12,14 @@ var shippedPolicySDKs = map[models.SDK]bool{
 	models.SDKOpenAIAgents:   true,
 	models.SDKMCP:            true,
 	models.SDKOpenShell:      true,
+	models.SDKGoogleADK:      true,
 }
 
 // depNameToSDK maps the canonical dep-file package name to the SDK enum.
 var depNameToSDK = map[string]models.SDK{
 	"claude-agent-sdk": models.SDKClaudeAgentSDK,
 	"openai-agents":    models.SDKOpenAIAgents,
+	"google-adk":       models.SDKGoogleADK,
 }
 
 // SelectAndEmitMETA inspects the profile + inventory and emits engine-level
@@ -104,6 +106,7 @@ func SelectAndEmitMETA(profile models.RepoProfile, inv models.RepoInventory) []m
 var sdkToCategory = map[models.SDK]models.DetectorCategory{
 	models.SDKClaudeAgentSDK: models.CategoryClaudeSDK,
 	models.SDKOpenAIAgents:   models.CategoryOpenAISDK,
+	models.SDKGoogleADK:      models.CategoryGoogleADK,
 }
 
 // EmitCoverageMETA emits META-004 when an audited SDK was observed in code

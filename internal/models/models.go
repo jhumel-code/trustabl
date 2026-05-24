@@ -57,6 +57,7 @@ const (
 	CategoryClaudeSDK DetectorCategory = "claude_sdk"
 	CategoryOpenAISDK DetectorCategory = "openai_sdk"
 	CategoryOpenShell DetectorCategory = "openshell"
+	CategoryGoogleADK DetectorCategory = "google_adk"
 )
 
 // ToolKind drives detector applicability.
@@ -68,6 +69,7 @@ const (
 	KindMCPTool         ToolKind = "mcp_tool"
 	KindShellInvocation ToolKind = "shell_invocation"
 	KindUnknown         ToolKind = "unknown"
+	KindADKFunctionTool ToolKind = "adk_function_tool"
 )
 
 // Language identifies the source language of a discovered tool. Rules
@@ -176,6 +178,7 @@ const (
 	SDKOpenAIAgents   SDK = "openai_agents"
 	SDKMCP            SDK = "mcp"
 	SDKOpenShell      SDK = "openshell"
+	SDKGoogleADK      SDK = "google_adk"
 )
 
 type SDKDep struct {

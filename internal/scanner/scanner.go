@@ -77,6 +77,8 @@ func Run(cfg Config) (models.ScanResult, error) {
 		return models.ScanResult{}, fmt.Errorf("discover: %w", err)
 	}
 	agents := analysis.DiscoverAgents(parsed)
+	agents = append(agents, analysis.DiscoverADKAgents(parsed)...)
+	tools = append(tools, analysis.DiscoverADKTools(parsed)...)
 	guardrails := analysis.DiscoverGuardrails(parsed)
 	sessions := analysis.DiscoverSessions(parsed)
 
@@ -156,6 +158,8 @@ func deriveSDKsDetected(tools []models.ToolDef, agents []models.AgentDef) []mode
 			seen[models.SDKMCP] = true
 		case models.KindShellInvocation:
 			seen[models.SDKOpenShell] = true
+		case models.KindADKFunctionTool:
+			seen[models.SDKGoogleADK] = true
 		}
 	}
 	for _, a := range agents {
