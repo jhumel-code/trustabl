@@ -67,3 +67,27 @@ const searchTool = tool("search", "desc", {}, async () => {});
 		t.Errorf("expected zero tools (no SDK import), got %d: %+v", len(tools), tools)
 	}
 }
+
+func TestDiscoverTSTools_RenamedImport(t *testing.T) {
+	src := `
+import { tool as t } from "@anthropic-ai/claude-agent-sdk";
+const x = t("search", "Search", {}, async () => {});
+`
+	pf := parseTSForTest(t, "src/a.ts", src)
+	tools := analysis.DiscoverTSTools([]analysis.ParsedFile{pf}, nil)
+	if len(tools) != 1 || tools[0].Name != "search" {
+		t.Errorf("renamed import: got %+v", tools)
+	}
+}
+
+func TestDiscoverTSTools_NamespaceImport(t *testing.T) {
+	src := `
+import * as sdk from "@anthropic-ai/claude-agent-sdk";
+const x = sdk.tool("search", "Search", {}, async () => {});
+`
+	pf := parseTSForTest(t, "src/a.ts", src)
+	tools := analysis.DiscoverTSTools([]analysis.ParsedFile{pf}, nil)
+	if len(tools) != 1 || tools[0].Name != "search" {
+		t.Errorf("namespace import: got %+v", tools)
+	}
+}
