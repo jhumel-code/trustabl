@@ -1,0 +1,131 @@
+package analysis
+
+import (
+	sitter "github.com/smacker/go-tree-sitter"
+
+	"github.com/trustabl/trustabl/internal/analysis/astutil"
+	"github.com/trustabl/trustabl/internal/models"
+)
+
+// DiscoverTSAgents extracts AgentDef records from TS source. Two shapes:
+//   1. Inline inside query({ options: { agents: { ... } } })
+//   2. Typed-const declarations: const x: AgentDefinition = {...}
+// (Typed-const shape added in a later task.)
+func DiscoverTSAgents(files []ParsedFile, onFile func(string)) []models.AgentDef {
+	var out []models.AgentDef
+	for _, pf := range files {
+		if onFile != nil {
+			onFile(pf.RelPath)
+		}
+		out = append(out, discoverTSAgentsInFile(pf)...)
+	}
+	return out
+}
+
+func discoverTSAgentsInFile(pf ParsedFile) []models.AgentDef {
+	if pf.Tree == nil {
+		return nil
+	}
+	aliases := astutil.TSImportAliases(pf.Tree.RootNode(), pf.Source, tsClaudeSDKModule)
+	if len(aliases) == 0 {
+		return nil // import gate
+	}
+	var out []models.AgentDef
+	astutil.Walk(pf.Tree.RootNode(), func(n *sitter.Node) bool {
+		if n.Type() == "call_expression" && astutil.TSCalleeText(n, pf.Source, aliases) == "query" {
+			out = append(out, extractInlineAgentsFromQuery(n, pf)...)
+		}
+		return true
+	})
+	return out
+}
+
+func extractInlineAgentsFromQuery(call *sitter.Node, pf ParsedFile) []models.AgentDef {
+	args := call.ChildByFieldName("arguments")
+	if args == nil || args.NamedChildCount() < 1 {
+		return nil
+	}
+	root := args.NamedChild(0)
+	if root.Type() != "object" {
+		return nil
+	}
+	options := getObjectProperty(root, "options", pf.Source)
+	if options == nil || options.Type() != "object" {
+		return nil
+	}
+	agentsObj := getObjectProperty(options, "agents", pf.Source)
+	if agentsObj == nil || agentsObj.Type() != "object" {
+		return nil
+	}
+	var out []models.AgentDef
+	for i := 0; i < int(agentsObj.NamedChildCount()); i++ {
+		prop := agentsObj.NamedChild(i)
+		if prop.Type() != "pair" {
+			continue
+		}
+		keyNode := prop.ChildByFieldName("key")
+		valNode := prop.ChildByFieldName("value")
+		if keyNode == nil || valNode == nil {
+			continue
+		}
+		var name string
+		switch keyNode.Type() {
+		case "property_identifier":
+			name = astutil.NodeText(keyNode, pf.Source)
+		case "string":
+			raw := astutil.NodeText(keyNode, pf.Source)
+			if len(raw) >= 2 {
+				name = raw[1 : len(raw)-1]
+			}
+		}
+		agent := models.AgentDef{
+			SDK:      models.SDKClaudeAgentSDK,
+			Class:    "AgentDefinition",
+			Language: models.LanguageTypeScript,
+			FilePath: pf.RelPath,
+			Line:     int(prop.StartPoint().Row) + 1,
+			Name:     name,
+		}
+		if valNode.Type() != "object" {
+			agent.Opaque = true
+		} else {
+			agent.Kwargs = astutil.TSObjectKwargs(valNode, pf.Source)
+		}
+		out = append(out, agent)
+	}
+	return out
+}
+
+// getObjectProperty returns the value node of `obj.prop` if obj is an object
+// literal with a literal property_identifier or string key matching `key`;
+// nil otherwise.
+func getObjectProperty(obj *sitter.Node, key string, src []byte) *sitter.Node {
+	if obj == nil || obj.Type() != "object" {
+		return nil
+	}
+	for i := 0; i < int(obj.NamedChildCount()); i++ {
+		prop := obj.NamedChild(i)
+		if prop.Type() != "pair" {
+			continue
+		}
+		k := prop.ChildByFieldName("key")
+		v := prop.ChildByFieldName("value")
+		if k == nil || v == nil {
+			continue
+		}
+		var kname string
+		switch k.Type() {
+		case "property_identifier":
+			kname = astutil.NodeText(k, src)
+		case "string":
+			raw := astutil.NodeText(k, src)
+			if len(raw) >= 2 {
+				kname = raw[1 : len(raw)-1]
+			}
+		}
+		if kname == key {
+			return v
+		}
+	}
+	return nil
+}
