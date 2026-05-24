@@ -135,3 +135,45 @@ const q = query(getOptions());
 		t.Errorf("expected zero agents (options non-literal), got %+v", agents)
 	}
 }
+
+func TestDiscoverTSAgents_MCPServerRefsFromOptions(t *testing.T) {
+	src := `
+import { query, createSdkMcpServer } from "@anthropic-ai/claude-agent-sdk";
+
+const srv = createSdkMcpServer({ name: "x" });
+
+const q = query({
+  options: {
+    agents: {
+      a: { description: "a", prompt: "p" }
+    },
+    mcpServers: {
+      inline: { type: "stdio", command: "x" },
+      byref:  srv
+    }
+  }
+});
+`
+	pf := parseTSForTest(t, "src/a.ts", src)
+	agents := analysis.DiscoverTSAgents([]analysis.ParsedFile{pf}, nil)
+	if len(agents) != 1 {
+		t.Fatalf("want 1 agent, got %d", len(agents))
+	}
+	refs := agents[0].MCPServerRefs
+	if len(refs) != 2 {
+		t.Fatalf("want 2 MCPServerRefs, got %d: %+v", len(refs), refs)
+	}
+	// One inline-literal-typed ref + one identifier-typed ref.
+	var sawInline, sawByref bool
+	for _, r := range refs {
+		switch r.Class {
+		case "McpStdioServerConfig":
+			sawInline = true
+		case "createSdkMcpServer":
+			sawByref = true
+		}
+	}
+	if !sawInline || !sawByref {
+		t.Errorf("missing one of the expected refs: %+v", refs)
+	}
+}

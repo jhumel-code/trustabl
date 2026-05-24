@@ -62,6 +62,8 @@ func extractInlineAgentsFromQuery(call *sitter.Node, pf ParsedFile) []models.Age
 	if options == nil || options.Type() != "object" {
 		return nil
 	}
+	mcpRefs := extractTSMCPServerRefs(options, pf)
+
 	agentsObj := getObjectProperty(options, "agents", pf.Source)
 	if agentsObj == nil || agentsObj.Type() != "object" {
 		return nil
@@ -88,12 +90,13 @@ func extractInlineAgentsFromQuery(call *sitter.Node, pf ParsedFile) []models.Age
 			}
 		}
 		agent := models.AgentDef{
-			SDK:      models.SDKClaudeAgentSDK,
-			Class:    "AgentDefinition",
-			Language: models.LanguageTypeScript,
-			FilePath: pf.RelPath,
-			Line:     int(prop.StartPoint().Row) + 1,
-			Name:     name,
+			SDK:           models.SDKClaudeAgentSDK,
+			Class:         "AgentDefinition",
+			Language:      models.LanguageTypeScript,
+			FilePath:      pf.RelPath,
+			Line:          int(prop.StartPoint().Row) + 1,
+			Name:          name,
+			MCPServerRefs: mcpRefs,
 		}
 		if valNode.Type() != "object" {
 			agent.Opaque = true
@@ -104,6 +107,49 @@ func extractInlineAgentsFromQuery(call *sitter.Node, pf ParsedFile) []models.Age
 		out = append(out, agent)
 	}
 	return out
+}
+
+// extractTSMCPServerRefs builds the MCPServerRef list from
+// options.mcpServers. Object-literal values produce refs whose Class is
+// the TS union-member name (McpStdioServerConfig etc.); identifier values
+// produce refs whose Class is "createSdkMcpServer" (the only function that
+// returns an MCP server in the TS SDK — same-file resolution to the actual
+// MCPServerDef happens in ResolveEdges, out of scope for SP1).
+func extractTSMCPServerRefs(options *sitter.Node, pf ParsedFile) []models.MCPServerRef {
+	servers := getObjectProperty(options, "mcpServers", pf.Source)
+	if servers == nil || servers.Type() != "object" {
+		return nil
+	}
+	var refs []models.MCPServerRef
+	for i := 0; i < int(servers.NamedChildCount()); i++ {
+		prop := servers.NamedChild(i)
+		if prop.Type() != "pair" {
+			continue
+		}
+		val := prop.ChildByFieldName("value")
+		if val == nil {
+			continue
+		}
+		switch val.Type() {
+		case "object":
+			typeNode := getObjectProperty(val, "type", pf.Source)
+			if typeNode == nil || typeNode.Type() != "string" {
+				continue
+			}
+			raw := astutil.NodeText(typeNode, pf.Source)
+			if len(raw) < 2 {
+				continue
+			}
+			class := tsMCPClassForTransport(raw[1 : len(raw)-1])
+			if class == "" {
+				continue
+			}
+			refs = append(refs, models.MCPServerRef{Class: class})
+		case "identifier":
+			refs = append(refs, models.MCPServerRef{Class: "createSdkMcpServer"})
+		}
+	}
+	return refs
 }
 
 // getObjectProperty returns the value node of `obj.prop` if obj is an object
