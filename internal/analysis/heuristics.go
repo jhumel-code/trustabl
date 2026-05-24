@@ -34,8 +34,9 @@ func FindFunctionNode(t models.ToolDef, pf ParsedFile) *sitter.Node {
 }
 
 // IsHTTPCall returns true if the literal callee text matches a known HTTP
-// client function. Limitation: aliased session calls (e.g. `s.get(...)` where
-// `s = requests.Session()`) are not resolved — the matcher is exact-text only.
+// client function. This is the direct-call check; aliased session calls
+// (e.g. `s.get(...)` where `s = requests.Session()`) are resolved by
+// IsHTTPCallNode, which delegates here for the direct case.
 func IsHTTPCall(callee string) bool {
 	switch callee {
 	case "requests.get", "requests.post", "requests.put", "requests.delete",
@@ -145,6 +146,41 @@ func resolveWithAliases(with *sitter.Node, src []byte, out map[string]string) {
 			}
 		}
 	}
+}
+
+// IsHTTPCallNode resolves a call node to its canonical HTTP callee, handling
+// both direct calls (requests.get -> "requests.get") and aliased attribute
+// calls (s.get where aliases["s"]=="requests" -> "requests.get"). Returns the
+// canonical callee text and true if it is a recognized HTTP call. The
+// canonical string is what rule `callees` lists are written against
+// (requests.get, httpx.post, ...).
+func IsHTTPCallNode(call *sitter.Node, src []byte, aliases map[string]string) (string, bool) {
+	if call == nil {
+		return "", false
+	}
+	fn := call.ChildByFieldName("function")
+	if fn == nil {
+		return "", false
+	}
+	calleeText := astutil.NodeText(fn, src)
+
+	// Direct call (requests.get, httpx.post, urllib.request.urlopen, ...).
+	if IsHTTPCall(calleeText) {
+		return calleeText, true
+	}
+
+	// Aliased attribute call: <ident>.<method> where <ident> is a known client
+	// alias. Canonicalize to <module>.<method>.
+	if fn.Type() == "attribute" {
+		obj := fn.ChildByFieldName("object")
+		attr := fn.ChildByFieldName("attribute")
+		if obj != nil && obj.Type() == "identifier" && attr != nil {
+			if mod, ok := aliases[astutil.NodeText(obj, src)]; ok {
+				return mod + "." + astutil.NodeText(attr, src), true
+			}
+		}
+	}
+	return "", false
 }
 
 // IsPathishParam returns true if a parameter name is clearly path-like.

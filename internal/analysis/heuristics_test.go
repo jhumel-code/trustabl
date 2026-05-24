@@ -77,3 +77,53 @@ def tool():
 		t.Errorf("s rebound to non-client should not remain an alias; got %v", got)
 	}
 }
+
+func firstCallNamed(t *testing.T, src, calleeText string) (*sitter.Node, []byte) {
+	t.Helper()
+	b := []byte(src)
+	tree, err := astutil.Parse(b)
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	var found *sitter.Node
+	astutil.Walk(tree.RootNode(), func(n *sitter.Node) bool {
+		if found != nil {
+			return false
+		}
+		if n.Type() == "call" {
+			fn := n.ChildByFieldName("function")
+			if fn != nil && astutil.NodeText(fn, b) == calleeText {
+				found = n
+				return false
+			}
+		}
+		return true
+	})
+	if found == nil {
+		t.Fatalf("call %q not found", calleeText)
+	}
+	return found, b
+}
+
+func TestIsHTTPCallNode(t *testing.T) {
+	// direct call
+	c1, b1 := firstCallNamed(t, `requests.get("u")`, "requests.get")
+	if got, ok := IsHTTPCallNode(c1, b1, nil); !ok || got != "requests.get" {
+		t.Errorf("direct: got (%q,%v), want (requests.get,true)", got, ok)
+	}
+	// aliased call
+	c2, b2 := firstCallNamed(t, `s.get("u")`, "s.get")
+	if got, ok := IsHTTPCallNode(c2, b2, map[string]string{"s": "requests"}); !ok || got != "requests.get" {
+		t.Errorf("aliased: got (%q,%v), want (requests.get,true)", got, ok)
+	}
+	// unknown alias
+	c3, b3 := firstCallNamed(t, `q.get("u")`, "q.get")
+	if _, ok := IsHTTPCallNode(c3, b3, map[string]string{"s": "requests"}); ok {
+		t.Errorf("unknown alias: ok=true, want false")
+	}
+	// non-HTTP
+	c4, b4 := firstCallNamed(t, `json.dumps(x)`, "json.dumps")
+	if _, ok := IsHTTPCallNode(c4, b4, nil); ok {
+		t.Errorf("non-HTTP: ok=true, want false")
+	}
+}
