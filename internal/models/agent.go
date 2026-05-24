@@ -49,6 +49,7 @@ type GuardrailRef struct {
 type AgentDef struct {
 	SDK            SDK             `json:"sdk"`
 	Class          string          `json:"class"`    // "Agent", "SandboxAgent", "AgentDefinition"
+	Language       Language        `json:"language"` // populated by every discovery path
 	FilePath       string          `json:"file_path"`
 	Line           int             `json:"line"`
 	EndLine        int             `json:"end_line"`

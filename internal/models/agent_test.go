@@ -37,3 +37,28 @@ func TestAgentDef_HostedToolRefsField(t *testing.T) {
 	}
 }
 
+func TestAgentDef_Language_RoundTripsThroughJSON(t *testing.T) {
+	a := models.AgentDef{
+		SDK:      models.SDKClaudeAgentSDK,
+		Class:    "AgentDefinition",
+		Language: models.LanguageTypeScript,
+		FilePath: "src/agent.ts",
+		Line:     10,
+		Name:     "reviewer",
+	}
+	data, err := json.Marshal(a)
+	if err != nil {
+		t.Fatalf("marshal: %v", err)
+	}
+	if !strings.Contains(string(data), `"language":"typescript"`) {
+		t.Errorf("JSON missing language field: %s", data)
+	}
+	var got models.AgentDef
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Language != models.LanguageTypeScript {
+		t.Errorf("language: got %q, want %q", got.Language, models.LanguageTypeScript)
+	}
+}
+
