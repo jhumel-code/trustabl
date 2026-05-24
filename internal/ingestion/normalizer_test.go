@@ -77,3 +77,29 @@ func TestDetectSDKDeps_TSNeedleScopedToPackageJSONOnly(t *testing.T) {
 		t.Errorf("expected claude-agent-sdk@package.json even in devDependencies, got %+v", deps)
 	}
 }
+
+// TestDetectSDKDeps_DoesNotCrossFireTSNeedleIntoPyprojectToml guards the
+// substring-collision footgun: the TS needle "@anthropic-ai/claude-agent-sdk"
+// contains the Python needle "claude-agent-sdk" as a substring. The TS needle
+// is restricted to package.json, so a pyproject.toml that happens to mention
+// the TS package id in prose MUST NOT produce a TS-source SDKDep. The Python
+// needle WILL match (expected), but the TS needle should not. If this test
+// ever starts failing, someone likely added package.json to the Python
+// needle's Manifests list — read the maintainer comment in detectSDKDeps.
+func TestDetectSDKDeps_DoesNotCrossFireTSNeedleIntoPyprojectToml(t *testing.T) {
+	dir := t.TempDir()
+	pyproject := `[project]
+description = "tools for @anthropic-ai/claude-agent-sdk integration"
+`
+	if err := os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte(pyproject), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	deps := detectSDKDeps(dir)
+	// The Python needle will match (expected behavior), but we must verify
+	// the TS needle doesn't also produce a package.json-sourced entry.
+	for _, d := range deps {
+		if d.Source == "package.json" && d.Name == "claude-agent-sdk" {
+			t.Errorf("TS needle should not fire when pyproject.toml mentions the TS package; got %+v", d)
+		}
+	}
+}
