@@ -499,8 +499,12 @@ func PredAgentKwargPresent(paths []string, a models.AgentDef) bool {
 
 func PredAgentKwargMissing(paths []string, a models.AgentDef) bool {
 	for _, p := range paths {
-		if lookupKwarg(a, p) == nil {
-			return true
+		kw := lookupKwarg(a, p)
+		if kw == nil {
+			return true // absent
+		}
+		if kw.Value != nil && kw.Value.Kind == models.ExprLiteralNone {
+			return true // present but explicitly None — ineffective
 		}
 	}
 	return false

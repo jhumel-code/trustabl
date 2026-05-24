@@ -782,3 +782,25 @@ func TestPredAgentIsSubagentOfAny(t *testing.T) {
 		})
 	}
 }
+
+func TestPredAgentKwargMissing_None(t *testing.T) {
+	mk := func(kind models.ExprKind, text string) models.AgentDef {
+		return models.AgentDef{
+			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
+				"before_tool_callback": {Value: &models.Expr{Kind: kind, Text: text}},
+			}},
+		}
+	}
+	// present with None -> counts as missing
+	if !rules.PredAgentKwargMissing([]string{"before_tool_callback"}, mk(models.ExprLiteralNone, "None")) {
+		t.Errorf("before_tool_callback=None should count as missing")
+	}
+	// present with a real value -> not missing
+	if rules.PredAgentKwargMissing([]string{"before_tool_callback"}, mk(models.ExprNameRef, "my_fn")) {
+		t.Errorf("before_tool_callback=my_fn should NOT count as missing")
+	}
+	// absent -> missing
+	if !rules.PredAgentKwargMissing([]string{"before_tool_callback"}, models.AgentDef{Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{}}}) {
+		t.Errorf("absent before_tool_callback should count as missing")
+	}
+}
