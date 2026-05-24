@@ -726,7 +726,7 @@ internal/
 │   ├── astutil/                 Tiny tree-sitter ergonomic layer (NodeText,
 │   │                            Walk, FindAll, FunctionName, FunctionParams,
 │   │                            FunctionDocstring, FunctionHasTypedParams,
-│   │                            HasKwarg).
+│   │                            KwargValue).
 │   ├── discovery.go             Tool discovery passes.
 │   ├── adk_agents.go            ADK agent + FunctionTool discovery (DiscoverADKAgents, DiscoverADKTools).
 │   ├── adk_hosted_tools.go      ADK built-in hosted-tool class set + classifier (ADKHostedToolClasses).
@@ -784,8 +784,9 @@ need:
 - `IsPathishParam(name)` — word-boundary check against path/file/dir names so
   `editor_id` does not match `_dir`.
 
-`HasKwarg(call, src, name)` is in `astutil` because it is pure tree-sitter and
-has no domain knowledge.
+`KwargValue(call, src, name)` is in `astutil` because it is pure tree-sitter and
+has no domain knowledge. It returns a keyword argument's value text plus a
+presence flag, so callers can distinguish absent from present-but-`None`.
 
 ---
 

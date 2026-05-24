@@ -204,27 +204,6 @@ func FunctionParams(fn *sitter.Node, src []byte) []string {
 	return out
 }
 
-// HasKwarg returns true if a call node has a keyword argument with the given name.
-func HasKwarg(call *sitter.Node, src []byte, name string) bool {
-	args := call.ChildByFieldName("arguments")
-	if args == nil {
-		return false
-	}
-	found := false
-	Walk(args, func(n *sitter.Node) bool {
-		if n.Type() != "keyword_argument" {
-			return true
-		}
-		k := n.ChildByFieldName("name")
-		if k != nil && NodeText(k, src) == name {
-			found = true
-			return false
-		}
-		return true
-	})
-	return found
-}
-
 // KwargValue returns the value-node text of the named keyword argument in a
 // call's argument list, and whether the kwarg is present at all.
 //

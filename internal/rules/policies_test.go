@@ -151,6 +151,13 @@ def get_data(cache_key: str) -> dict:
     """Read from cache."""
     return cache.fetch(cache_key)
 `, nil, false},
+	{"CSDK-003 fires on session-alias get without timeout", "CSDK-003", models.KindClaudeSDKTool, `
+import requests
+def get_invoice(id: str) -> dict:
+    """Fetch invoice."""
+    s = requests.Session()
+    return s.get("https://api.example.com/invoice/" + id).json()
+`, nil, true},
 
 	// ─── CSDK-004 unsafe path ───────────────────────────────────────────────
 	{"CSDK-004 fires on path in open()", "CSDK-004", models.KindClaudeSDKTool, `

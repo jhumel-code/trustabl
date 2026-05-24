@@ -58,6 +58,8 @@ func IsHTTPCall(callee string) bool {
 // for the recognized client set.
 func clientConstructorModule(calleeText string) string {
 	switch calleeText {
+	// requests.session (lowercase) is the library's legacy factory function,
+	// equivalent to requests.Session(); both are real and in use.
 	case "requests.Session", "requests.session":
 		return "requests"
 	case "httpx.Client", "httpx.AsyncClient":
