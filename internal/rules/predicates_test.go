@@ -708,6 +708,19 @@ def tool(url: str) -> str:
 	}
 }
 
+func TestPredHasDynamicURLCall_Alias(t *testing.T) {
+	src := `
+def tool(host: str) -> str:
+    """t."""
+    s = requests.Session()
+    return s.get(f"https://{host}/x").text
+`
+	tool, pf := parsePy(t, src, models.KindOpenAITool)
+	if !rules.PredHasDynamicURLCall(tool, pf) {
+		t.Errorf("expected dynamic-URL call through alias to be detected")
+	}
+}
+
 func TestPredAgentIsSubagentOfAny(t *testing.T) {
 	childResolved := &models.AgentDef{Name: "child", FilePath: "main.py"}
 	parent := models.AgentDef{

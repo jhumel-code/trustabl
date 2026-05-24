@@ -113,6 +113,7 @@ func PredHasDynamicURLCall(t models.ToolDef, pf analysis.ParsedFile) bool {
 	if root == nil {
 		return false
 	}
+	aliases := analysis.ResolveClientAliases(root, pf.Source)
 	found := false
 	astutil.Walk(root, func(n *sitter.Node) bool {
 		if found {
@@ -121,11 +122,7 @@ func PredHasDynamicURLCall(t models.ToolDef, pf analysis.ParsedFile) bool {
 		if n.Type() != "call" {
 			return true
 		}
-		fn := n.ChildByFieldName("function")
-		if fn == nil {
-			return true
-		}
-		if !analysis.IsHTTPCall(astutil.NodeText(fn, pf.Source)) {
+		if _, ok := analysis.IsHTTPCallNode(n, pf.Source, aliases); !ok {
 			return true
 		}
 		args := n.ChildByFieldName("arguments")
