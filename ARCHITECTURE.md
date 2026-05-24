@@ -30,23 +30,31 @@ added or changed without rebuilding or redistributing the scanner.
 
 ## 1.1 Language scope
 
-Trustabl ships with **Python tool discovery** wired in. The scanner can also
-recognize TypeScript, JavaScript, and Go *files* (they appear in
-`manifest.typescript_files` etc. and feed component discovery), but no AST
-parser for those languages is plumbed in yet — so no tools are extracted
-from them and no rules fire against them.
+Trustabl ships with **Python and TypeScript tool/agent discovery** wired
+in. Python covers the OpenAI Agents SDK, Google ADK, and Claude Agent SDK
+(via decorators). TypeScript covers the Claude Agent SDK (via `tool()` /
+`query()` / `createSdkMcpServer()` / typed-const `AgentDefinition` shapes
+in `.ts`/`.tsx`/`.mts`/`.cts`). No TS-language rules ship yet (SP2) —
+TS Claude SDK repos produce a META-004 info finding for now (the SDK is
+detected and the policy pack loads, but no rule is applicable to TS
+inputs). The scanner can also recognize JavaScript and Go *files* (they
+appear in `manifest.typescript_files` and friends) but has no AST parser
+for them.
 
 The rule schema's `language:` field gates per-language rule sets. Existing
 rules declare `language: python` explicitly and the loader rejects any
-unknown language value. When TypeScript tool discovery lands, new rules
-declare `language: typescript` and run only against TS tools; Python rules
-remain inert against TS tools.
+unknown language value. New TS-language rules (when they ship) will declare
+`language: typescript` and run only against TS tools; Python rules remain
+inert against TS tools.
 
 Adding a new tool-discovery language requires:
 
-1. A tree-sitter binding for that language in `internal/analysis/astutil/`.
+1. A tree-sitter binding for that language in `internal/analysis/astutil/`
+   (done for TypeScript via `astutil/ts.go`).
 2. Discovery patterns for that language's tool definitions in
-   `internal/analysis/discovery.go` (e.g. AI SDK's `tool({})` factory in TS).
+   `internal/analysis/` (e.g. the Claude SDK `tool()` factory in TS — done
+   for TS in `internal/analysis/ts_discovery.go`, `ts_agents.go`,
+   `ts_mcp_servers.go`).
 3. Per-language predicate implementations in `internal/rules/predicates.go`
    (since AST node types differ across languages).
 4. New rule files under `<category>/` in the external `trustabl-rules`
@@ -561,6 +569,7 @@ RepoInventory {
 
 AgentDef {
     SDK, Class, FilePath string; Line, EndLine int
+    Language       Language       // python | typescript
     Name           string         // from name= kwarg literal
     Kwargs         *KwargTree     // all constructor kwargs, typed
     ToolRefs       []ToolRef      // resolved to ToolDef or flagged External
@@ -618,8 +627,10 @@ HostedToolRef {
 }
 
 MCPServerDef {
-    Class     string     // "MCPServerStdio" | "MCPServerSse" | "MCPServerStreamableHttp"
-    Transport string     // "stdio" | "sse" | "streamable_http"
+    Class     string     // Python: "MCPServerStdio" | "MCPServerSse" | "MCPServerStreamableHttp"
+                         // TS: "McpStdioServerConfig" | "McpSSEServerConfig" | "McpHttpServerConfig" | "McpSdkServerConfigWithInstance" | "createSdkMcpServer"
+    Transport string     // "stdio" | "sse" | "streamable_http" | "sdk"
+    Language  Language   // python | typescript
     SDK       SDK
     FilePath  string
     Line      int
@@ -693,6 +704,15 @@ Python file list, and the resolved rules version, so identical inputs produce
 diff-comparable JSON across runs — and a different rule pack yields a distinct,
 honest ID.
 
+**Language-field discipline**: `ToolDef`, `AgentDef`, and `MCPServerDef`
+carry a `Language` field populated by every discovery path and consulted
+by the rule detector's language gate (so a `language: python` rule does
+not fire against a TS agent). `HostedToolDef`, `GuardrailDef`,
+`SessionUse`, and `SubagentDef` do not carry a `Language` field — none
+are consumed by language-gated rule detectors today. A future rule that
+needs to gate on hosted-tool language would require adding the field to
+`HostedToolDef` and a corresponding gate.
+
 Discipline rules:
 
 - `RawSource` was deliberately **not** included on `ToolDef`. Carrying full
@@ -726,7 +746,9 @@ internal/
 │   ├── astutil/                 Tiny tree-sitter ergonomic layer (NodeText,
 │   │                            Walk, FindAll, FunctionName, FunctionParams,
 │   │                            FunctionDocstring, FunctionHasTypedParams,
-│   │                            KwargValue).
+│   │                            KwargValue). TS helpers: NewTSParser,
+│   │                            NewTSXParser, ParserKindForExtension,
+│   │                            TSImportAliases, TSObjectKwargs, TSCalleeText.
 │   ├── discovery.go             Python tool discovery passes (DiscoverTools,
 │   │                            kindFromDecorators, decorator-kwarg capture).
 │   ├── agents.go                Python agent / guardrail / session discovery and
@@ -743,6 +765,9 @@ internal/
 │   │                            + with-statement alias resolver.
 │   ├── adk_agents.go            ADK agent + FunctionTool discovery (DiscoverADKAgents, DiscoverADKTools).
 │   ├── adk_hosted_tools.go      ADK built-in hosted-tool class set + classifier (ADKHostedToolClasses).
+│   ├── ts_discovery.go         TS Claude SDK tool() factory discovery (DiscoverTSTools).
+│   ├── ts_agents.go            TS AgentDef discovery (inline-in-query + typed-const).
+│   ├── ts_mcp_servers.go       TS MCP server discovery (createSdkMcpServer + 4 config literals).
 │   ├── heuristics.go            Domain helpers shared by every detector path:
 │   │                            FindFunctionNode, IsHTTPCall, ResolveClientAliases,
 │   │                            IsHTTPCallNode, IsPathishParam.

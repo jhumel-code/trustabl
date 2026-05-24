@@ -4,7 +4,7 @@ Coverage matrix for Trustabl's static analysis: which agent SDKs (and which
 languages) we currently scan, analyse, and detect against. This file is the
 at-a-glance reference; `ARCHITECTURE.md` has the implementation detail.
 
-_Last reviewed: 2026-05-24 (HEAD `f38db99`)._
+_Last reviewed: 2026-05-25 (HEAD `04eb831`)._
 
 > **Note:** Detection rules are not shipped in the binary. They live in the
 > separate `trustabl-rules` git repository
@@ -21,7 +21,7 @@ Legend: ✅ full · ◐ partial · ❌ none · — N/A
 | SDK | Language | Scanning | Analysis (AST discovery) | Detection rules |
 |---|---|---|---|---|
 | **Claude Agent SDK** | Python | ✅ dep-scan + file inventory + `.claude/` components | ✅ tools, agents, subagents, settings | ✅ CSDK-001..007 (tool), CSDK-101 (agent) |
-| **Claude Agent SDK** | TypeScript | ◐ file inventory + `.claude/` components | ❌ no TS AST parser | ❌ |
+| **Claude Agent SDK** | TypeScript | ✅ dep-scan (`@anthropic-ai/claude-agent-sdk`) + file inventory + `.claude/` components | ✅ tools (`tool()` factory), agents (inline-in-query + typed-const), MCP servers (createSdkMcpServer + 4 config literals) | ❌ no TS rules yet (SP2) — META-004 fires |
 | **OpenAI Agents SDK** | Python | ✅ dep-scan + file inventory | ✅ tools, hosted tools (11 classes), agents, MCP servers (3 transports + alias), guardrails, sessions | ✅ OAI-001..006 (tool), OAI-101..105 (agent), OAI-201 (repo) |
 | **OpenAI Agents SDK** | TypeScript | ◐ file inventory only | ❌ no TS AST parser | ❌ |
 | **MCP** | Python | ✅ tool registrations + config files | ◐ tool registrations only (no server-side resource/prompt discovery) | ❌ no dedicated pack (KindMCPTool is reachable by some CSDK rules' `applies_to`) |
@@ -44,6 +44,22 @@ Discovery sources: `internal/analysis/discovery.go`, `agents.go`, `subagents.go`
 | Subagents | `.claude/agents/*.md` frontmatter (YAML between leading `---` markers): `name`, `description`, `tools` (scalar or YAML-list form), `model`. Files without frontmatter or without a `name:` are skipped |
 | Settings | `.claude/settings.json` and `settings.local.json` JSON-parsed: `permissions.allow`/`deny`/`ask` decomposed via the grammar `<Tool>` \| `<Tool>(<pattern>)` plus `mcp__<server>__<tool>`; `defaultMode`, `additionalDirectories`, presence flags for `env`/`hooks`/`sandbox` |
 | Components surfaced (path-only) | `CLAUDE.md`, `.claude/commands/*.md`, `hooks/*.{py,ts,js,jsx,mjs}`, MCP configs (`mcp.json`, `mcp_servers.json`, `claude_desktop_config.json`) |
+
+### Claude Agent SDK — TypeScript
+
+Discovery sources: `internal/analysis/ts_discovery.go`, `ts_agents.go`,
+`ts_mcp_servers.go`. Import gate: only files importing from
+`@anthropic-ai/claude-agent-sdk` are processed (handles named, renamed,
+namespace `* as`, and default imports).
+
+| Construct | Recognition |
+|---|---|
+| Tools | `tool(name, description, zodSchema, handler, extras?)` factory calls. Captures: name (arg 0), description (arg 1), Zod schema top-level keys as ParamNames, handler body facts (`shells_out`, `http_call`), extras flattened into Config |
+| Agents (inline) | Each property inside `query({options: {agents: {...}}})`. Property key becomes `Name`; value object becomes `Kwargs` |
+| Agents (typed-const) | `const x: AgentDefinition = {...}` (and `export const ...`). `Name=VarName=constName`; value object becomes `Kwargs` |
+| MCP servers | `createSdkMcpServer({...})` → `Class="createSdkMcpServer"`, `Transport="sdk"`. Object literals in `options.mcpServers` discriminated by `type:` → one of `McpStdioServerConfig`/`McpSSEServerConfig`/`McpHttpServerConfig`/`McpSdkServerConfigWithInstance` |
+| Tool refs | `agent.tools=["Read","Bash",…]` strings populate `AgentDef.ToolRefs` |
+| MCP refs | Each property in `agent.options.mcpServers` populates `AgentDef.MCPServerRefs` (inline-object values → class from `type:`; identifier values → `Class="createSdkMcpServer"`) |
 
 ### OpenAI Agents SDK — Python
 
@@ -100,7 +116,7 @@ instead of firing the OSH rules.
 
 | Gap | Effort sketch |
 |---|---|
-| **Claude SDK TypeScript** (`@anthropic-ai/claude-agent-sdk`) | Tree-sitter TS binding in `astutil/`, new discovery file mirroring Python: `query()`, `ClaudeSDKClient`, hook factories. Per-language predicate impls in `rules/predicates.go`. New TS-language rule pack |
+| **Claude SDK TypeScript rules** (`@anthropic-ai/claude-agent-sdk`) | Discovery is done (SP1). Remaining: per-language predicate implementations in `rules/predicates.go` and a TS-language rule pack in the `trustabl-rules` repository. Currently produces META-004 (policy loaded, no rule applicable to TS inputs) |
 | **OpenAI Agents SDK TypeScript** (`@openai/agents`) | Same as above — TS parser + discovery for `Agent`/`tool()` factory shape. The npm package uses a different shape than Python (e.g. `tool({})` factory rather than `@function_tool` decorator) |
 | **Google ADK TypeScript** ([`google/adk-js`](https://github.com/google/adk-js)) | Depends on TS parser landing for any TS work; then ADK-JS-specific shape discovery |
 | **MCP cross-language** (TS, Rust, Go) | Two prerequisites are missing today: (1) MCP dep-scan needles in `internal/ingestion/normalizer.go` — currently only `claude-agent-sdk` / `claude_agent_sdk` / `openai-agents` / `@openai/agents` / `google-adk` are matched; there is no `@modelcontextprotocol/sdk` (npm), no `rmcp` / `anthropic-mcp` (Cargo), no Go MCP module needle. (2) per-language AST parsers and discovery for the SDK shapes (`Server.tool()` factory in TS, `#[tool]` macros in Rust, etc.). File paths are recorded by the generic walk but no MCP-specific extraction happens against them |
