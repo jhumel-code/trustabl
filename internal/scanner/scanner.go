@@ -7,14 +7,20 @@
 package scanner
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
 	"io/fs"
+	"os"
+	"path/filepath"
 	"sort"
 	"strings"
 
+	sitter "github.com/smacker/go-tree-sitter"
+
 	"github.com/trustabl/trustabl/internal/analysis"
+	"github.com/trustabl/trustabl/internal/analysis/astutil"
 	"github.com/trustabl/trustabl/internal/ingestion"
 	"github.com/trustabl/trustabl/internal/models"
 	"github.com/trustabl/trustabl/internal/progress"
@@ -68,7 +74,7 @@ func Run(cfg Config) (models.ScanResult, error) {
 
 	// Step 2: inventory (per-language AST; Python only for now)
 	rep.StartPhase("inventory", "Inventory")
-	rep.SetTotal(len(profile.Manifest.PythonFiles))
+	rep.SetTotal(len(profile.Manifest.PythonFiles) + len(profile.Manifest.TypeScriptFiles))
 	tools, parsed, err := analysis.DiscoverTools(profile.Manifest, func(path string) {
 		rep.Advance(path)
 	})
@@ -82,16 +88,25 @@ func Run(cfg Config) (models.ScanResult, error) {
 	guardrails := analysis.DiscoverGuardrails(parsed)
 	sessions := analysis.DiscoverSessions(parsed)
 
+	// TS block: parse TypeScript files, then run TS-specific discovery.
+	tsFiles := parseTSFiles(profile.Manifest.TypeScriptFiles, profile.Manifest.RepoRoot, func(path string) {
+		rep.Advance(path)
+	})
+	tools = append(tools, analysis.DiscoverTSTools(tsFiles, nil)...)
+	agents = append(agents, analysis.DiscoverTSAgents(tsFiles, nil)...)
+	mcpServers := analysis.DiscoverTSMCPServers(tsFiles, nil)
+
 	inventory := models.RepoInventory{
 		Tools:              tools,
 		Agents:             agents,
 		Guardrails:         guardrails,
 		Sessions:           sessions,
+		MCPServers:         mcpServers,
 		Manifest:           profile.Manifest,
 		SDKsDetected:       deriveSDKsDetected(tools, agents),
 		UsesDefaultTracing: computeUsesDefaultTracing(parsed),
 	}
-	analysis.ResolveEdges(&inventory, parsed)
+	analysis.ResolveEdges(&inventory, append(parsed, tsFiles...))
 	inventory.Subagents = analysis.DiscoverSubagents(profile.Manifest)
 	inventory.ClaudeSettings = analysis.DiscoverClaudeSettings(profile.Manifest)
 	rep.EndPhase(fmt.Sprintf("%d tools · %d agents", len(tools), len(agents)))
@@ -114,7 +129,8 @@ func Run(cfg Config) (models.ScanResult, error) {
 	// Step 4: analysis
 	rep.StartPhase("analysis", "Analysis")
 	rep.SetTotal(len(inventory.Tools) + len(inventory.Agents))
-	ruleFindings := registry.Run(profile, inventory, parsed, func(label string) {
+	allParsed := append(parsed, tsFiles...)
+	ruleFindings := registry.Run(profile, inventory, allParsed, func(label string) {
 		rep.Advance(label)
 	})
 	findings := append(metaFindings, ruleFindings...)
@@ -196,6 +212,42 @@ func languagesLabel(langs []models.Language) string {
 		parts[i] = string(l)
 	}
 	return strings.Join(parts, ", ")
+}
+
+// parseTSFiles reads and parses each path in paths (relative to root) using
+// the appropriate tree-sitter grammar (typescript vs tsx). Files that cannot
+// be read or parsed are silently skipped — one bad file should not abort the
+// scan. The optional onFile callback fires once per file attempted (progress
+// hook), mirroring the same callback convention used by analysis.DiscoverTools.
+func parseTSFiles(paths []string, root string, onFile func(string)) []analysis.ParsedFile {
+	tsParser := astutil.NewTSParser()
+	tsxParser := astutil.NewTSXParser()
+	var out []analysis.ParsedFile
+	for _, rel := range paths {
+		if onFile != nil {
+			onFile(rel)
+		}
+		full := filepath.Join(root, rel)
+		body, err := os.ReadFile(full)
+		if err != nil {
+			continue
+		}
+		var parser *sitter.Parser
+		switch astutil.ParserKindForExtension(rel) {
+		case "typescript":
+			parser = tsParser
+		case "tsx":
+			parser = tsxParser
+		default:
+			continue
+		}
+		tree, err := parser.ParseCtx(context.Background(), nil, body)
+		if err != nil {
+			continue
+		}
+		out = append(out, analysis.ParsedFile{RelPath: rel, Source: body, Tree: tree})
+	}
+	return out
 }
 
 // scanID is derived from the repo label, the sorted set of Python files, and

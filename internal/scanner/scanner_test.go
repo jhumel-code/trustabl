@@ -11,6 +11,56 @@ import (
 	"github.com/trustabl/trustabl/internal/scanner"
 )
 
+func TestScanRun_DiscoversTSClaudeSDK(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		t.Helper()
+		full := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("package.json", `{"dependencies": {"@anthropic-ai/claude-agent-sdk": "^1.0.0"}}`)
+	mustWrite("src/agent.ts", `
+import { tool, query, createSdkMcpServer, AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
+import { z } from "zod";
+
+export const searchTool = tool("search", "Search", { q: z.string() }, async () => ({ content: [] }));
+export const srv = createSdkMcpServer({ name: "x" });
+export const reviewer: AgentDefinition = { description: "r", prompt: "p" };
+export const q = query({ options: { agents: { analyst: { description: "a", prompt: "p" } } } });
+`)
+	cfg := scanner.Config{
+		Target:  dir,
+		RulesFS: rulesFixture(t),
+	}
+	res, err := scanner.Run(cfg)
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(res.Tools) == 0 {
+		t.Errorf("Tools empty")
+	}
+	if len(res.Agents) < 2 {
+		t.Errorf("want >= 2 agents (analyst + reviewer), got %d", len(res.Agents))
+	}
+	if len(res.MCPServers) == 0 {
+		t.Errorf("MCPServers empty")
+	}
+	var sawClaudeSDK bool
+	for _, s := range res.SDKs {
+		if s == models.SDKClaudeAgentSDK {
+			sawClaudeSDK = true
+		}
+	}
+	if !sawClaudeSDK {
+		t.Errorf("SDKsDetected missing claude_agent_sdk: %+v", res.SDKs)
+	}
+}
+
 // rulesFixture returns the Phase-1 interim rule packs for tests.
 func rulesFixture(t *testing.T) fs.FS {
 	t.Helper()
