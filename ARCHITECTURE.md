@@ -727,7 +727,20 @@ internal/
 │   │                            Walk, FindAll, FunctionName, FunctionParams,
 │   │                            FunctionDocstring, FunctionHasTypedParams,
 │   │                            KwargValue).
-│   ├── discovery.go             Tool discovery passes.
+│   ├── discovery.go             Python tool discovery passes (DiscoverTools,
+│   │                            kindFromDecorators, decorator-kwarg capture).
+│   ├── agents.go                Python agent / guardrail / session discovery and
+│   │                            edge resolution (DiscoverAgents, DiscoverGuardrails,
+│   │                            DiscoverSessions, ResolveEdges, SessionClasses).
+│   ├── claude_agent_accessors.go Typed Claude AgentDef kwarg accessors
+│   │                            (ClaudeBuiltinTools, ClaudeDisallowedTools,
+│   │                            ClaudePermissionMode, etc.).
+│   ├── claude_settings.go       .claude/settings.json parser (DiscoverClaudeSettings,
+│   │                            ParsePermissionRule).
+│   ├── subagents.go             .claude/agents/*.md frontmatter parser (DiscoverSubagents).
+│   ├── hosted_tools.go          OpenAI hosted-tool class set (HostedToolClasses, 11 classes).
+│   ├── mcp_servers.go           OpenAI MCP server class set (MCPServerClasses, 3 transports)
+│   │                            + with-statement alias resolver.
 │   ├── adk_agents.go            ADK agent + FunctionTool discovery (DiscoverADKAgents, DiscoverADKTools).
 │   ├── adk_hosted_tools.go      ADK built-in hosted-tool class set + classifier (ADKHostedToolClasses).
 │   ├── heuristics.go            Domain helpers shared by every detector path:
