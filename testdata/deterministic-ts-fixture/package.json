@@ -1,0 +1,6 @@
+{
+  "name": "det-ts",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^1.0.0"
+  }
+}

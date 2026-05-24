@@ -49,3 +49,24 @@ func TestScanDeterministic(t *testing.T) {
 		t.Error("ScanID unchanged when rules version changed")
 	}
 }
+
+// TestScanDeterministic_TSFixture asserts that two runs over the same TS fixture
+// with the same rules version produce the same ScanID. Guards the determinism
+// contract in ARCHITECTURE.md §7 for TypeScript scans.
+func TestScanDeterministic_TSFixture(t *testing.T) {
+	_, thisFile, _, _ := runtime.Caller(0)
+	fixture := filepath.Join(filepath.Dir(thisFile), "..", "..", "testdata", "deterministic-ts-fixture")
+
+	cfg := scanner.Config{Target: fixture, RulesFS: rulesFixtureFS(t), RulesVersion: "fixedsha"}
+	r1, err := scanner.Run(cfg)
+	if err != nil {
+		t.Fatalf("first run: %v", err)
+	}
+	r2, err := scanner.Run(cfg)
+	if err != nil {
+		t.Fatalf("second run: %v", err)
+	}
+	if r1.ScanID != r2.ScanID {
+		t.Errorf("non-deterministic ScanID: %q vs %q", r1.ScanID, r2.ScanID)
+	}
+}
