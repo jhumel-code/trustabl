@@ -166,3 +166,30 @@ func TestScan_SurfacesNewInventoryFields(t *testing.T) {
 		t.Errorf("expected WebSearchTool in ScanResult.HostedTools, got %+v", res.HostedTools)
 	}
 }
+
+func TestScanExamples_TSClaudeSDKMin_DiscoveryCounts(t *testing.T) {
+	_, thisFile, _, _ := runtime.Caller(0)
+	target := filepath.Join(filepath.Dir(thisFile), "..", "..", "examples", "ts-claude-sdk-min")
+	res, err := scanner.Run(scanner.Config{Target: target, RulesFS: rulesFixture(t)})
+	if err != nil {
+		t.Fatalf("Run: %v", err)
+	}
+	if len(res.Tools) == 0 {
+		t.Errorf("expected at least one TS tool, got 0")
+	}
+	if len(res.Agents) < 2 {
+		t.Errorf("expected at least 2 agents (analyst + reviewer), got %d", len(res.Agents))
+	}
+	if len(res.MCPServers) < 2 {
+		t.Errorf("expected at least 2 MCP servers (createSdkMcpServer + stdio config), got %d", len(res.MCPServers))
+	}
+	var meta004 int
+	for _, f := range res.Findings {
+		if f.RuleID == "META-004" {
+			meta004++
+		}
+	}
+	if meta004 == 0 {
+		t.Errorf("expected META-004 (SDK detected but no rule applicable) since no TS-language rules ship yet; got 0 findings with that rule")
+	}
+}
