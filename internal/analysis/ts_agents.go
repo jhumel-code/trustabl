@@ -100,6 +100,7 @@ func extractInlineAgentsFromQuery(call *sitter.Node, pf ParsedFile) []models.Age
 		} else {
 			agent.Kwargs = astutil.TSObjectKwargs(valNode, pf.Source)
 		}
+		populateTSAgentToolRefs(&agent)
 		out = append(out, agent)
 	}
 	return out
@@ -154,7 +155,7 @@ func extractTypedConstAgent(decl *sitter.Node, pf ParsedFile) (models.AgentDef, 
 		return models.AgentDef{}, false
 	}
 	name := astutil.NodeText(nameNode, pf.Source)
-	return models.AgentDef{
+	agent := models.AgentDef{
 		SDK:      models.SDKClaudeAgentSDK,
 		Class:    "AgentDefinition",
 		Language: models.LanguageTypeScript,
@@ -163,5 +164,32 @@ func extractTypedConstAgent(decl *sitter.Node, pf ParsedFile) (models.AgentDef, 
 		Name:     name,
 		VarName:  name,
 		Kwargs:   astutil.TSObjectKwargs(valueNode, pf.Source),
-	}, true
+	}
+	populateTSAgentToolRefs(&agent)
+	return agent, true
+}
+
+// populateTSAgentToolRefs reads agent.Kwargs.Children["tools"] (if it's a
+// list of string literals) and appends one ToolRef per entry. Builtin tool
+// names like "Read"/"Bash" stay as strings — they're not resolved to
+// ToolDefs (which represent user-defined tools).
+func populateTSAgentToolRefs(a *models.AgentDef) {
+	if a.Kwargs == nil {
+		return
+	}
+	tools := a.Kwargs.Children["tools"]
+	if tools == nil || tools.Value == nil || tools.Value.Kind != models.ExprList {
+		return
+	}
+	for _, item := range tools.Value.List {
+		if item.Kind != models.ExprLiteralString {
+			continue
+		}
+		raw := item.Text
+		if len(raw) < 2 {
+			continue
+		}
+		name := raw[1 : len(raw)-1]
+		a.ToolRefs = append(a.ToolRefs, models.ToolRef{Name: name})
+	}
 }

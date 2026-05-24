@@ -80,3 +80,27 @@ export const auditor: AgentDefinition = {
 		}
 	}
 }
+
+func TestDiscoverTSAgents_ToolRefsFromBuiltinStrings(t *testing.T) {
+	src := `
+import { AgentDefinition } from "@anthropic-ai/claude-agent-sdk";
+
+const x: AgentDefinition = {
+  description: "x",
+  prompt: "y",
+  tools: ["Read", "Bash"]
+};
+`
+	pf := parseTSForTest(t, "src/a.ts", src)
+	agents := analysis.DiscoverTSAgents([]analysis.ParsedFile{pf}, nil)
+	if len(agents) != 1 || len(agents[0].ToolRefs) != 2 {
+		t.Fatalf("got %+v, want one agent with 2 ToolRefs", agents)
+	}
+	got := []string{agents[0].ToolRefs[0].Name, agents[0].ToolRefs[1].Name}
+	want := []string{"Read", "Bash"}
+	for i, w := range want {
+		if got[i] != w {
+			t.Errorf("ToolRef[%d]: got %q want %q", i, got[i], w)
+		}
+	}
+}
