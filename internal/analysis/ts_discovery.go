@@ -90,6 +90,14 @@ func extractTSToolFromCall(call *sitter.Node, pf ParsedFile) (models.ToolDef, bo
 			}
 		}
 	}
+	// Extras (arg 4) flattened into Config.
+	if len(posArgs) >= 5 && posArgs[4].Type() == "object" {
+		extras := astutil.TSObjectKwargs(posArgs[4], pf.Source)
+		if tool.Config == nil {
+			tool.Config = map[string]string{}
+		}
+		flattenKwargs("", extras, tool.Config)
+	}
 	return tool, true
 }
 
@@ -142,4 +150,23 @@ func tsHandlerFacts(handler *sitter.Node, src []byte) map[string]string {
 		return true
 	})
 	return out
+}
+
+// flattenKwargs walks a KwargTree and writes leaf values into out using
+// dot-joined keys (`annotations.readOnlyHint` etc.).
+func flattenKwargs(prefix string, kt *models.KwargTree, out map[string]string) {
+	if kt == nil {
+		return
+	}
+	for k, child := range kt.Children {
+		key := k
+		if prefix != "" {
+			key = prefix + "." + k
+		}
+		if child.Value != nil {
+			out[key] = child.Value.Text
+			continue
+		}
+		flattenKwargs(key, child, out)
+	}
 }

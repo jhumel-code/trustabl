@@ -126,3 +126,32 @@ const httpTool = tool("fetch", "Fetch", {}, async () => {
 		t.Errorf("http_call: got %q, want true", http.Facts["http_call"])
 	}
 }
+
+func TestDiscoverTSTools_ExtrasConfigCapture(t *testing.T) {
+	src := `
+import { tool } from "@anthropic-ai/claude-agent-sdk";
+const x = tool("search", "Search", {}, async () => {},
+  { annotations: { readOnlyHint: true } });
+`
+	pf := parseTSForTest(t, "src/a.ts", src)
+	tools := analysis.DiscoverTSTools([]analysis.ParsedFile{pf}, nil)
+	if len(tools) != 1 {
+		t.Fatalf("got %d", len(tools))
+	}
+	if tools[0].Config["annotations.readOnlyHint"] != "true" {
+		t.Errorf("Config[annotations.readOnlyHint]: got %q, want \"true\"", tools[0].Config["annotations.readOnlyHint"])
+	}
+}
+
+func TestDiscoverTSTools_NonLiteralName_EmptyName(t *testing.T) {
+	src := `
+import { tool } from "@anthropic-ai/claude-agent-sdk";
+const n = getName();
+const x = tool(n, "Search", {}, async () => {});
+`
+	pf := parseTSForTest(t, "src/a.ts", src)
+	tools := analysis.DiscoverTSTools([]analysis.ParsedFile{pf}, nil)
+	if len(tools) != 1 || tools[0].Name != "" {
+		t.Errorf("expected one tool with empty Name (non-literal arg 0), got %+v", tools)
+	}
+}
