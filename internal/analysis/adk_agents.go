@@ -57,6 +57,7 @@ func discoverADKAgentsInFile(pf ParsedFile) []models.AgentDef {
 		a := models.AgentDef{
 			SDK:      models.SDKGoogleADK,
 			Class:    normalized,
+			Language: models.LanguagePython,
 			FilePath: pf.RelPath,
 			Line:     int(n.StartPoint().Row) + 1,
 			EndLine:  int(n.EndPoint().Row) + 1,

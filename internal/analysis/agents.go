@@ -158,6 +158,7 @@ func ResolveEdges(inv *models.RepoInventory, parsed []ParsedFile) {
 							Class:     aliasDef.Class,
 							Transport: aliasDef.Transport,
 							SDK:       models.SDKOpenAIAgents,
+							Language:  models.LanguagePython,
 							FilePath:  a.FilePath,
 							Line:      a.Line,
 						})
@@ -334,6 +335,7 @@ func discoverAgentsInFile(pf ParsedFile) []models.AgentDef {
 		a := models.AgentDef{
 			SDK:      imp.SDK,
 			Class:    imp.Class,
+			Language: models.LanguagePython,
 			FilePath: pf.RelPath,
 			Line:     int(n.StartPoint().Row) + 1,
 			EndLine:  int(n.EndPoint().Row) + 1,
