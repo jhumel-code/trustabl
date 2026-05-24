@@ -50,6 +50,12 @@ func detectSDKDeps(root string) []models.SDKDep {
 		Manifests []string
 	}
 	needles := []needle{
+		// NOTE: "claude-agent-sdk" is a literal substring of the TS package id
+		// "@anthropic-ai/claude-agent-sdk". Keep this needle's Manifests list
+		// restricted to Python manifests ONLY (pyproject.toml, requirements.txt,
+		// Pipfile, poetry.lock). Adding "package.json" here would cause every
+		// TS-only Claude SDK repo to spuriously emit a Python "claude-agent-sdk"
+		// SDKDep via substring match against the TS needle's text below.
 		{Name: "claude-agent-sdk", Pattern: "claude-agent-sdk",
 			Manifests: []string{"pyproject.toml", "requirements.txt", "Pipfile", "poetry.lock"}},
 		{Name: "claude-agent-sdk", Pattern: "claude_agent_sdk",
@@ -60,6 +66,10 @@ func detectSDKDeps(root string) []models.SDKDep {
 			Manifests: []string{"package.json"}},
 		{Name: "google-adk", Pattern: "google-adk",
 			Manifests: []string{"pyproject.toml", "requirements.txt", "Pipfile", "poetry.lock"}},
+		// TS Claude SDK — restrict to package.json. See the comment above for
+		// why this MUST NOT be combined with the Python "claude-agent-sdk" needle.
+		{Name: "claude-agent-sdk", Pattern: "@anthropic-ai/claude-agent-sdk",
+			Manifests: []string{"package.json"}},
 	}
 	seen := make(map[string]bool)
 	var out []models.SDKDep
@@ -177,6 +187,11 @@ func shouldSkipDir(name string) bool {
 // detectClaudeSDKDependency: cheap text scan of pyproject.toml / requirements.txt
 // for the Anthropic SDK marker. This is intentionally fuzzy — false positives are
 // cheaper than false negatives at the manifest stage; detectors will be precise.
+//
+// NOTE: the needles below are SUBSTRINGS of the TS package id
+// "@anthropic-ai/claude-agent-sdk". The candidates list is restricted to
+// Python manifests ONLY. Do NOT add package.json here — every TS-only Claude
+// SDK repo would spuriously set HasClaudeSDKDependency=true via substring.
 func detectClaudeSDKDependency(root string) bool {
 	candidates := []string{
 		filepath.Join(root, "pyproject.toml"),
