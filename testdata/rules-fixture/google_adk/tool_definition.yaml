@@ -1,0 +1,49 @@
+policy:
+  id: google_adk_tool_definition
+  name: ADK tool definition hygiene
+  category: google_adk
+  description: >
+    Hygiene rules for Google ADK FunctionTool-wrapped user functions —
+    the same surfaces that drive tool-call self-correction for the model.
+
+rules:
+  - id: ADK-001
+    title: FunctionTool-wrapped function has no docstring
+    scope: tool
+    severity: low
+    confidence: 0.8
+    language: python
+    applies_to: [adk_function_tool]
+    match:
+      has_docstring: false
+    explanation: >
+      Google ADK FunctionTool wraps a user-written function and exposes it
+      to the model. ADK uses the function's docstring as the tool
+      description that the model sees when deciding whether to call it. A
+      tool with no docstring is a tool the model cannot reason about — it
+      will under-call it or call it with the wrong arguments. This is the
+      single highest-leverage authoring fix for ADK tools.
+    fix: >
+      Add a one-paragraph docstring describing what the tool does, what
+      inputs it expects, and what it returns. The model reads this string
+      verbatim.
+
+  - id: ADK-002
+    title: FunctionTool-wrapped function has no type-annotated parameters
+    scope: tool
+    severity: medium
+    confidence: 0.85
+    language: python
+    applies_to: [adk_function_tool]
+    match:
+      has_typed_params: false
+    explanation: >
+      Google ADK derives the JSON schema for a FunctionTool's parameters
+      from the wrapped function's type annotations. A function with
+      untyped parameters produces an underspecified schema — the model
+      receives no type guidance and will pass arguments of the wrong
+      type, which the SDK then rejects at validation time.
+    fix: >
+      Annotate every parameter with a concrete type (str, int, bool,
+      list[str], Pydantic model, etc.). ADK propagates these into the
+      schema the model sees.

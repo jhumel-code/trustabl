@@ -297,6 +297,45 @@ def read_file(file_path: str) -> str:
     with open(p, "r") as f:
         return f.read()
 `, nil, false},
+
+	// ─── ADK-001 missing docstring on FunctionTool wrap ──────────────────────
+	{"ADK-001 fires on missing docstring", "ADK-001", models.KindADKFunctionTool, `
+def get_weather(city: str) -> str:
+    return "sunny"
+`, nil, true},
+	{"ADK-001 silent with docstring", "ADK-001", models.KindADKFunctionTool, `
+def get_weather(city: str) -> str:
+    """Look up the weather for a city."""
+    return "sunny"
+`, nil, false},
+
+	// ─── ADK-002 untyped params on FunctionTool wrap ─────────────────────────
+	{"ADK-002 fires on untyped params", "ADK-002", models.KindADKFunctionTool, `
+def get_weather(city):
+    """Look up the weather."""
+    return "sunny"
+`, nil, true},
+	{"ADK-002 silent on typed params", "ADK-002", models.KindADKFunctionTool, `
+def get_weather(city: str) -> str:
+    """Look up the weather."""
+    return "sunny"
+`, nil, false},
+
+	// ─── ADK-003 network call without timeout ────────────────────────────────
+	{"ADK-003 fires on requests.get without timeout", "ADK-003", models.KindADKFunctionTool, `
+import requests
+
+def get_weather(city: str) -> str:
+    """Look up the weather."""
+    return requests.get("https://api.example.com/w/" + city).text
+`, nil, true},
+	{"ADK-003 silent with timeout", "ADK-003", models.KindADKFunctionTool, `
+import requests
+
+def get_weather(city: str) -> str:
+    """Look up the weather."""
+    return requests.get("https://api.example.com/w/" + city, timeout=10).text
+`, nil, false},
 }
 
 // policyRepoRuleCases covers repo-scoped rules.
@@ -462,6 +501,97 @@ var policyAgentRuleCases = []policyAgentCase{
 			},
 		},
 		models.RepoInventory{},
+		false},
+
+	// ─── ADK-101 LlmAgent with no description ────────────────────────────────
+	{"ADK-101 fires when LlmAgent has no description", "ADK-101",
+		models.AgentDef{
+			SDK:   models.SDKGoogleADK,
+			Class: "LlmAgent",
+			Name:  "child",
+			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
+				"name": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"child"`}},
+			}},
+		},
+		models.RepoInventory{},
+		true},
+	{"ADK-101 silent when LlmAgent has description", "ADK-101",
+		models.AgentDef{
+			SDK:   models.SDKGoogleADK,
+			Class: "LlmAgent",
+			Name:  "child",
+			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
+				"name":        {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"child"`}},
+				"description": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"Looks up weather."`}},
+			}},
+		},
+		models.RepoInventory{},
+		false},
+
+	// ─── ADK-102 BashTool without before_tool_callback ───────────────────────
+	{"ADK-102 fires with BashTool and no before_tool_callback", "ADK-102",
+		models.AgentDef{
+			SDK:            models.SDKGoogleADK,
+			Class:          "LlmAgent",
+			Name:           "root",
+			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
+			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
+				"name": {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"root"`}},
+			}},
+		},
+		models.RepoInventory{},
+		true},
+	{"ADK-102 silent when before_tool_callback is present", "ADK-102",
+		models.AgentDef{
+			SDK:            models.SDKGoogleADK,
+			Class:          "LlmAgent",
+			Name:           "root",
+			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
+			Kwargs: &models.KwargTree{Children: map[string]*models.KwargTree{
+				"name":                 {Value: &models.Expr{Kind: models.ExprLiteralString, Text: `"root"`}},
+				"before_tool_callback": {Value: &models.Expr{Kind: models.ExprNameRef, Text: "my_guard"}},
+			}},
+		},
+		models.RepoInventory{},
+		false},
+
+	// ─── ADK-103 sub-agent granted BashTool ──────────────────────────────────
+	{"ADK-103 fires on sub-agent with BashTool", "ADK-103",
+		models.AgentDef{
+			SDK:            models.SDKGoogleADK,
+			Class:          "LlmAgent",
+			Name:           "child",
+			FilePath:       "main.py",
+			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
+		},
+		models.RepoInventory{Agents: []models.AgentDef{
+			{
+				SDK:      models.SDKGoogleADK,
+				Class:    "SequentialAgent",
+				Name:     "parent",
+				FilePath: "main.py",
+				HandoffRefs: []models.AgentRef{
+					{Name: "child", Resolved: &models.AgentDef{Name: "child", FilePath: "main.py"}},
+				},
+			},
+		}},
+		true},
+	{"ADK-103 silent on root agent (not a sub-agent of any)", "ADK-103",
+		models.AgentDef{
+			SDK:            models.SDKGoogleADK,
+			Class:          "LlmAgent",
+			Name:           "root",
+			FilePath:       "main.py",
+			HostedToolRefs: []models.HostedToolRef{{Class: "BashTool"}},
+		},
+		models.RepoInventory{Agents: []models.AgentDef{
+			{
+				SDK:      models.SDKGoogleADK,
+				Class:    "LlmAgent",
+				Name:     "sibling",
+				FilePath: "main.py",
+			},
+		}},
 		false},
 }
 
