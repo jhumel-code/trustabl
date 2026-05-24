@@ -78,28 +78,38 @@ func TestDetectSDKDeps_TSNeedleScopedToPackageJSONOnly(t *testing.T) {
 	}
 }
 
-// TestDetectSDKDeps_DoesNotCrossFireTSNeedleIntoPyprojectToml guards the
-// substring-collision footgun: the TS needle "@anthropic-ai/claude-agent-sdk"
-// contains the Python needle "claude-agent-sdk" as a substring. The TS needle
-// is restricted to package.json, so a pyproject.toml that happens to mention
-// the TS package id in prose MUST NOT produce a TS-source SDKDep. The Python
-// needle WILL match (expected), but the TS needle should not. If this test
-// ever starts failing, someone likely added package.json to the Python
-// needle's Manifests list — read the maintainer comment in detectSDKDeps.
-func TestDetectSDKDeps_DoesNotCrossFireTSNeedleIntoPyprojectToml(t *testing.T) {
+// TestDetectSDKDeps_TSPackageInPackageJSONProducesExactlyOneEntry guards the
+// substring-collision footgun. The Python needle pattern "claude-agent-sdk"
+// is a literal substring of the TS package id "@anthropic-ai/claude-agent-sdk".
+// The Python needle is correctly scoped to Python manifests, so a package.json
+// declaring only the TS dep must produce EXACTLY ONE claude-agent-sdk SDKDep
+// (Source=package.json from the TS needle). If a future maintainer adds
+// "package.json" to the Python needle's Manifests list, this test fails
+// because two cross-fired entries appear. Read the maintainer comment in
+// detectSDKDeps before "fixing" this test.
+func TestDetectSDKDeps_TSPackageInPackageJSONProducesExactlyOneEntry(t *testing.T) {
 	dir := t.TempDir()
-	pyproject := `[project]
-description = "tools for @anthropic-ai/claude-agent-sdk integration"
-`
-	if err := os.WriteFile(filepath.Join(dir, "pyproject.toml"), []byte(pyproject), 0o644); err != nil {
+	pkg := `{
+  "name": "demo",
+  "dependencies": {
+    "@anthropic-ai/claude-agent-sdk": "^1.0.0"
+  }
+}`
+	if err := os.WriteFile(filepath.Join(dir, "package.json"), []byte(pkg), 0o644); err != nil {
 		t.Fatal(err)
 	}
 	deps := detectSDKDeps(dir)
-	// The Python needle will match (expected behavior), but we must verify
-	// the TS needle doesn't also produce a package.json-sourced entry.
+	var matches []string
 	for _, d := range deps {
-		if d.Source == "package.json" && d.Name == "claude-agent-sdk" {
-			t.Errorf("TS needle should not fire when pyproject.toml mentions the TS package; got %+v", d)
+		if d.Name == "claude-agent-sdk" {
+			matches = append(matches, d.Source)
 		}
+	}
+	if len(matches) != 1 {
+		t.Errorf("expected exactly 1 claude-agent-sdk entry, got %d (sources: %v) — likely substring cross-fire", len(matches), matches)
+		return
+	}
+	if matches[0] != "package.json" {
+		t.Errorf("expected Source=package.json (TS needle), got %q", matches[0])
 	}
 }
