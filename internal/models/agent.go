@@ -103,11 +103,16 @@ type HostedToolRef struct {
 	Resolved *HostedToolDef `json:"-"`
 }
 
-// MCPServerDef is one discovered MCP server. Source of truth for class names:
-// openai-agents-python/src/agents/mcp/server.py (Python) and
-// @anthropic-ai/claude-agent-sdk type definitions (TS).
+// MCPServerDef is one discovered MCP server. Source of truth for class
+// names:
+//   - Python: openai-agents-python/src/agents/mcp/server.py
+//     ("MCPServerStdio" | "MCPServerSse" | "MCPServerStreamableHttp")
+//   - TS:     @anthropic-ai/claude-agent-sdk type defs
+//     ("McpStdioServerConfig" | "McpSSEServerConfig" |
+//      "McpHttpServerConfig" | "McpSdkServerConfigWithInstance" |
+//      "createSdkMcpServer")
 type MCPServerDef struct {
-	Class     string     `json:"class"`     // Python: "MCPServerStdio" | "MCPServerSse" | "MCPServerStreamableHttp"; TS: "McpStdioServerConfig" | "McpSSEServerConfig" | "McpHttpServerConfig" | "McpSdkServerConfigWithInstance" | "createSdkMcpServer"
+	Class     string     `json:"class"`
 	Transport string     `json:"transport"` // "stdio" | "sse" | "streamable_http" | "http" | "sdk"
 	SDK       SDK        `json:"sdk"`
 	Language  Language   `json:"language"` // populated by every discovery path

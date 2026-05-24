@@ -78,5 +78,12 @@ func TestMCPServerDef_Language_RoundTripsThroughJSON(t *testing.T) {
 	if !strings.Contains(string(data), `"language":"typescript"`) {
 		t.Errorf("JSON missing language: %s", data)
 	}
+	var got models.MCPServerDef
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if got.Language != models.LanguageTypeScript {
+		t.Errorf("language: got %q, want %q", got.Language, models.LanguageTypeScript)
+	}
 }
 
