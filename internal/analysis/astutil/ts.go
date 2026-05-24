@@ -202,3 +202,39 @@ func classifyTSExpr(n *sitter.Node, src []byte) *models.Expr {
 	}
 	return &models.Expr{Kind: models.ExprUnknown, Text: text}
 }
+
+// TSCalleeText resolves a call_expression's callee against an alias map and
+// returns the canonical export name (e.g. "tool", "query",
+// "createSdkMcpServer") if the call targets a tracked export, or "" if it
+// does not. The aliases map should come from TSImportAliases. Handles:
+//   tool(...)            — direct call, aliases["tool"] = "tool"
+//   t(...)               — renamed import, aliases["t"] = "tool"
+//   sdk.tool(...)        — namespace import, aliases["sdk"] = "*"
+//   defaultExport.tool() — default import treated as a namespace, aliases["defaultExport"] = "default"
+func TSCalleeText(call *sitter.Node, src []byte, aliases map[string]string) string {
+	if call == nil || aliases == nil {
+		return ""
+	}
+	fn := call.ChildByFieldName("function")
+	if fn == nil {
+		return ""
+	}
+	switch fn.Type() {
+	case "identifier":
+		name := NodeText(fn, src)
+		if canon, ok := aliases[name]; ok && canon != "*" && canon != "default" {
+			return canon
+		}
+	case "member_expression":
+		obj := fn.ChildByFieldName("object")
+		prop := fn.ChildByFieldName("property")
+		if obj == nil || prop == nil || obj.Type() != "identifier" {
+			return ""
+		}
+		objName := NodeText(obj, src)
+		if canon, ok := aliases[objName]; ok && (canon == "*" || canon == "default") {
+			return NodeText(prop, src)
+		}
+	}
+	return ""
+}

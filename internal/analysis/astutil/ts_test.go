@@ -140,3 +140,45 @@ func findFirstObjectLiteral(n *sitter.Node) *sitter.Node {
 	})
 	return out
 }
+
+func TestTSCalleeText_ResolutionAgainstAliasMap(t *testing.T) {
+	cases := []struct {
+		src     string
+		aliases map[string]string
+		want    string // canonical export name, or "" if not resolved
+	}{
+		{`tool("x", "y", {}, async()=>{});`, map[string]string{"tool": "tool"}, "tool"},
+		{`t("x", "y", {}, async()=>{});`, map[string]string{"t": "tool"}, "tool"},
+		{`sdk.tool("x", "y", {}, async()=>{});`, map[string]string{"sdk": "*"}, "tool"},
+		{`defaultExport.tool("x", "y", {}, async()=>{});`, map[string]string{"defaultExport": "default"}, "tool"},
+		{`other("x");`, map[string]string{"tool": "tool"}, ""},
+	}
+	for _, c := range cases {
+		p := astutil.NewTSParser()
+		tree, _ := p.ParseCtx(context.Background(), nil, []byte(c.src))
+		call := findFirstCallExpression(tree.RootNode())
+		if call == nil {
+			t.Errorf("no call_expression in %q", c.src)
+			continue
+		}
+		got := astutil.TSCalleeText(call, []byte(c.src), c.aliases)
+		if got != c.want {
+			t.Errorf("src=%q want=%q got=%q", c.src, c.want, got)
+		}
+	}
+}
+
+func findFirstCallExpression(n *sitter.Node) *sitter.Node {
+	var out *sitter.Node
+	astutil.Walk(n, func(x *sitter.Node) bool {
+		if out != nil {
+			return false
+		}
+		if x.Type() == "call_expression" {
+			out = x
+			return false
+		}
+		return true
+	})
+	return out
+}
