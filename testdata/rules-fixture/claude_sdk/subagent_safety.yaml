@@ -1,0 +1,23 @@
+policy:
+  id: claude_sdk_subagent_safety
+  name: Subagent safety
+  category: claude_sdk
+  description: >
+    Rules covering .claude/agents/*.md subagent declarations.
+rules:
+  - id: CSDK-110
+    title: Subagent granted the built-in Bash tool
+    scope: subagent
+    severity: high
+    confidence: 0.9
+    applies_to: [claude_subagent]
+    match:
+      subagent_grants_tool: [Bash]
+    explanation: >
+      This subagent's frontmatter grants the built-in `Bash` tool, letting it
+      run arbitrary shell commands. A narrowly-scoped subagent (e.g. a search
+      or read specialist) rarely needs shell access; granting it widens the
+      blast radius if the subagent is compromised or misdirected.
+    fix: >
+      Remove `Bash` from the subagent's `tools:` list unless shell access is
+      essential. Prefer specific tools (Read, Grep, Glob) for read-only roles.

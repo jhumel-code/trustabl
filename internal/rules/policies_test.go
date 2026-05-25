@@ -76,6 +76,24 @@ func loadRepoRule(t *testing.T, ruleID string) detectors.RepoDetector {
 	return nil
 }
 
+// loadSubagentRule fetches a subagent-scoped rule as a SubagentDetector.
+func loadSubagentRule(t *testing.T, ruleID string) detectors.SubagentDetector {
+	t.Helper()
+	policies, err := rules.Load(fixtureFS(t))
+	if err != nil {
+		t.Fatalf("load policies: %v", err)
+	}
+	for _, p := range policies {
+		for _, r := range p.Rules {
+			if r.ID == ruleID && r.Scope == models.ScopeSubagent {
+				return rules.NewSubagentRuleDetector(r)
+			}
+		}
+	}
+	t.Fatalf("subagent-scoped rule %s not found in shipped policies", ruleID)
+	return nil
+}
+
 // policyRuleCase is one fire-or-silent test against a shipped tool-scoped rule.
 type policyRuleCase struct {
 	name       string            // test subname
@@ -100,6 +118,15 @@ type policyRepoCase struct {
 	name      string
 	ruleID    string
 	profile   models.RepoProfile
+	inv       models.RepoInventory
+	wantFires bool
+}
+
+// policySubagentCase is one fire-or-silent test against a shipped subagent-scoped rule.
+type policySubagentCase struct {
+	name      string
+	ruleID    string
+	subagent  models.SubagentDef
 	inv       models.RepoInventory
 	wantFires bool
 }
@@ -384,6 +411,16 @@ var policyRepoRuleCases = []policyRepoCase{
 			UsesDefaultTracing: false,
 		},
 		false},
+}
+
+// policySubagentRuleCases covers subagent-scoped rules.
+var policySubagentRuleCases = []policySubagentCase{
+	{"CSDK-110 fires when subagent grants Bash", "CSDK-110",
+		models.SubagentDef{Name: "inbox-searcher", FilePath: ".claude/agents/inbox-searcher.md",
+			Tools: []string{"Read", "Bash", "Grep"}}, models.RepoInventory{}, true},
+	{"CSDK-110 silent when no Bash", "CSDK-110",
+		models.SubagentDef{Name: "reader", FilePath: ".claude/agents/reader.md",
+			Tools: []string{"Read", "Grep"}}, models.RepoInventory{}, false},
 }
 
 // policyAgentRuleCases covers agent-scoped rules.
@@ -739,6 +776,31 @@ func TestPolicyRepoRules(t *testing.T) {
 	}
 }
 
+func TestPolicySubagentRules(t *testing.T) {
+	for _, tc := range policySubagentRuleCases {
+		t.Run(tc.name, func(t *testing.T) {
+			d := loadSubagentRule(t, tc.ruleID)
+			if !d.Applies(tc.subagent) {
+				if tc.wantFires {
+					t.Fatalf("rule %s does not Apply to subagent %s — applies_to mismatch?",
+						tc.ruleID, tc.subagent.Name)
+				}
+				return
+			}
+			fired := false
+			for _, f := range d.Detect(tc.subagent, tc.inv) {
+				if f.RuleID == tc.ruleID {
+					fired = true
+					break
+				}
+			}
+			if fired != tc.wantFires {
+				t.Errorf("rule %s: fired=%v, want %v", tc.ruleID, fired, tc.wantFires)
+			}
+		})
+	}
+}
+
 // TestPolicyRules_AllRulesCovered fails if a shipped rule has no test case.
 func TestPolicyRules_AllRulesCovered(t *testing.T) {
 	policies, err := rules.Load(fixtureFS(t))
@@ -753,6 +815,9 @@ func TestPolicyRules_AllRulesCovered(t *testing.T) {
 		covered[tc.ruleID] = true
 	}
 	for _, tc := range policyRepoRuleCases {
+		covered[tc.ruleID] = true
+	}
+	for _, tc := range policySubagentRuleCases {
 		covered[tc.ruleID] = true
 	}
 	var missing []string
