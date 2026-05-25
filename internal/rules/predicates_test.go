@@ -815,3 +815,22 @@ func TestPredAgentKwargMissing_None(t *testing.T) {
 		t.Errorf("absent before_tool_callback should count as missing")
 	}
 }
+
+func TestPredSubagentGrantsTool(t *testing.T) {
+	grants := models.SubagentDef{Name: "x", Tools: []string{"Read", "Bash", "Grep"}}
+	noBash := models.SubagentDef{Name: "y", Tools: []string{"Read", "Grep"}}
+	none := models.SubagentDef{Name: "z"}
+
+	if !rules.PredSubagentGrantsTool(grants, []string{"Bash"}) {
+		t.Errorf("expected true: Tools contains Bash")
+	}
+	if rules.PredSubagentGrantsTool(noBash, []string{"Bash"}) {
+		t.Errorf("expected false: Tools does not contain Bash")
+	}
+	if rules.PredSubagentGrantsTool(none, []string{"Bash"}) {
+		t.Errorf("expected false: no Tools")
+	}
+	if !rules.PredSubagentGrantsTool(noBash, []string{"Bash", "Grep"}) {
+		t.Errorf("expected true: Tools contains Grep (one of the listed)")
+	}
+}

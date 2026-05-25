@@ -78,6 +78,9 @@ type MatchExpr struct {
 	AgentUsesHostedToolClass []string             `yaml:"agent_uses_hosted_tool_class,omitempty"`
 	AgentIsSubagentOfAny     *bool                `yaml:"agent_is_subagent_of_any,omitempty"`
 
+	// Subagent-scope predicates
+	SubagentGrantsTool []string `yaml:"subagent_grants_tool,omitempty"`
+
 	// Repo-scope predicates
 	RepoHasSDKDep          []string `yaml:"repo_has_sdk_dep,omitempty"`
 	RepoHasSDKInCode       []string `yaml:"repo_has_sdk_in_code,omitempty"`

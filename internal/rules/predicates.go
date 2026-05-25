@@ -616,6 +616,22 @@ func PredAgentIsSubagentOfAny(a models.AgentDef, inv models.RepoInventory) bool 
 	return false
 }
 
+// ─── subagent predicates ──────────────────────────────────────────────────────
+
+// PredSubagentGrantsTool reports whether the subagent's tools list contains
+// any of names. Case-sensitive: Claude Code tool names are canonical
+// ("Bash", "Read", "WebFetch", ...).
+func PredSubagentGrantsTool(s models.SubagentDef, names []string) bool {
+	for _, granted := range s.Tools {
+		for _, want := range names {
+			if granted == want {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // ─── repo predicates ──────────────────────────────────────────────────────────
 
 func PredRepoHasSDKDep(names []string, p models.RepoProfile) bool {
