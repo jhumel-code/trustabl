@@ -114,6 +114,41 @@ func (e MatchExpr) EvaluateRepo(p models.RepoProfile, inv models.RepoInventory) 
 	return true
 }
 
+// EvaluateSubagent walks a MatchExpr against a subagent. Subagent predicates
+// are dispatched here; predicates for other scopes return true vacuously
+// (a subagent rule should only set subagent predicates + combinators).
+func (e MatchExpr) EvaluateSubagent(s models.SubagentDef, inv models.RepoInventory) bool {
+	if len(e.All) > 0 {
+		for _, sub := range e.All {
+			if !sub.EvaluateSubagent(s, inv) {
+				return false
+			}
+		}
+	}
+	if len(e.Any) > 0 {
+		matched := false
+		for _, sub := range e.Any {
+			if sub.EvaluateSubagent(s, inv) {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return false
+		}
+	}
+	if e.Not != nil && e.Not.EvaluateSubagent(s, inv) {
+		return false
+	}
+	if e.Always != nil && !*e.Always {
+		return false
+	}
+	if len(e.SubagentGrantsTool) > 0 && !PredSubagentGrantsTool(s, e.SubagentGrantsTool) {
+		return false
+	}
+	return true
+}
+
 // EvaluateTool walks a MatchExpr against a tool and returns whether it matches.
 //
 // Semantics:
