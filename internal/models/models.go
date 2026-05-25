@@ -9,15 +9,16 @@ package models
 type Scope string
 
 const (
-	ScopeTool  Scope = "tool"
-	ScopeAgent Scope = "agent"
-	ScopeRepo  Scope = "repo"
+	ScopeTool     Scope = "tool"
+	ScopeAgent    Scope = "agent"
+	ScopeRepo     Scope = "repo"
+	ScopeSubagent Scope = "subagent"
 )
 
 // ValidScope reports whether s is a known scope value.
 func ValidScope(s Scope) bool {
 	switch s {
-	case ScopeTool, ScopeAgent, ScopeRepo:
+	case ScopeTool, ScopeAgent, ScopeRepo, ScopeSubagent:
 		return true
 	}
 	return false

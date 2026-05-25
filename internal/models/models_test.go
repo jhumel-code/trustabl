@@ -8,6 +8,15 @@ import (
 	"github.com/trustabl/trustabl/internal/models"
 )
 
+func TestValidScope_Subagent(t *testing.T) {
+	if !models.ValidScope(models.ScopeSubagent) {
+		t.Errorf("ScopeSubagent should be valid")
+	}
+	if models.ScopeSubagent != "subagent" {
+		t.Errorf("ScopeSubagent: got %q, want \"subagent\"", models.ScopeSubagent)
+	}
+}
+
 func TestScanResult_RulesProvenanceFieldsSerialize(t *testing.T) {
 	r := models.ScanResult{
 		RulesSource:    "https://example.com/rules",
