@@ -129,7 +129,7 @@ func Load(fsys fs.FS) ([]PolicyFile, error) {
 			if rule.Scope == "" {
 				errs = append(errs, fmt.Errorf("%s: scope is required (tool|agent|repo)", tag))
 			} else if !models.ValidScope(rule.Scope) {
-				errs = append(errs, fmt.Errorf("%s: unknown scope %q (allowed: tool, agent, repo)", tag, rule.Scope))
+				errs = append(errs, fmt.Errorf("%s: unknown scope %q (allowed: tool, agent, repo, subagent)", tag, rule.Scope))
 			}
 			if models.ValidScope(rule.Scope) {
 				for _, kind := range rule.AppliesTo {
@@ -140,10 +140,12 @@ func Load(fsys fs.FS) ([]PolicyFile, error) {
 			}
 			// Populate category from policy metadata — not in YAML.
 			pf.Rules[i].Category = models.DetectorCategory(pf.Policy.Category)
-			// Default language to python for backwards compatibility. Once
-			// we ship rules in a second language, the convention should shift
-			// to "language is required"; for now an omitted language is python.
-			if pf.Rules[i].Language == "" {
+			// Default language to python ONLY for tool/agent scope (the
+			// AST-backed scopes). Subagent rules audit markdown frontmatter and
+			// repo rules audit the inventory — neither gates on language, so an
+			// omitted language stays empty.
+			if pf.Rules[i].Language == "" &&
+				(pf.Rules[i].Scope == models.ScopeTool || pf.Rules[i].Scope == models.ScopeAgent) {
 				pf.Rules[i].Language = models.LanguagePython
 			}
 		}
@@ -174,6 +176,11 @@ func validAppliesToForScope(scope models.Scope, kind string) bool {
 	case models.ScopeRepo:
 		switch kind {
 		case "claude_sdk", "openai_agents", "openshell", "mcp", "google_adk":
+			return true
+		}
+	case models.ScopeSubagent:
+		switch kind {
+		case "claude_subagent":
 			return true
 		}
 	}

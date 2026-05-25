@@ -100,6 +100,29 @@ func agentKindMatches(kind string, a models.AgentDef) bool {
 	return false
 }
 
+// subagentRuleDetector adapts a subagent-scoped RuleDef into a SubagentDetector.
+type subagentRuleDetector struct{ rule RuleDef }
+
+func (d subagentRuleDetector) RuleID() string                    { return d.rule.ID }
+func (d subagentRuleDetector) Category() models.DetectorCategory { return d.rule.Category }
+func (d subagentRuleDetector) Applies(s models.SubagentDef) bool {
+	// No language gate: SubagentDef has no Language (markdown frontmatter is
+	// not Python/TS). Subagents are inherently Claude Code artifacts.
+	for _, k := range d.rule.AppliesTo {
+		if k == "claude_subagent" {
+			return true
+		}
+	}
+	return false
+}
+func (d subagentRuleDetector) Detect(s models.SubagentDef, inv models.RepoInventory) []models.Finding {
+	if !d.rule.Match.EvaluateSubagent(s, inv) {
+		return nil
+	}
+	// SubagentDef carries no line; attribute to the file.
+	return []models.Finding{findingFromRule(d.rule, s.FilePath, 0, s.Name)}
+}
+
 // NewToolRuleDetector wraps a RuleDef as a ToolDetector. Exported for test packages.
 func NewToolRuleDetector(r RuleDef) detectors.ToolDetector { return toolRuleDetector{r} }
 
@@ -108,6 +131,9 @@ func NewAgentRuleDetector(r RuleDef) detectors.AgentDetector { return agentRuleD
 
 // NewRepoRuleDetector wraps a RuleDef as a RepoDetector. Exported for test packages.
 func NewRepoRuleDetector(r RuleDef) detectors.RepoDetector { return repoRuleDetector{r} }
+
+// NewSubagentRuleDetector wraps a RuleDef as a SubagentDetector. Exported for test packages.
+func NewSubagentRuleDetector(r RuleDef) detectors.SubagentDetector { return subagentRuleDetector{r} }
 
 func findingFromRule(r RuleDef, filePath string, line int, toolName string) models.Finding {
 	return models.Finding{
@@ -150,6 +176,7 @@ func LoadFor(fsys fs.FS, sdks []models.SDK) (*detectors.Registry, error) {
 	var tool []detectors.ToolDetector
 	var agent []detectors.AgentDetector
 	var repo []detectors.RepoDetector
+	var subagent []detectors.SubagentDetector
 	for _, p := range all {
 		if !wanted[string(p.Policy.Category)] {
 			continue
@@ -162,10 +189,12 @@ func LoadFor(fsys fs.FS, sdks []models.SDK) (*detectors.Registry, error) {
 				agent = append(agent, agentRuleDetector{r})
 			case models.ScopeRepo:
 				repo = append(repo, repoRuleDetector{r})
+			case models.ScopeSubagent:
+				subagent = append(subagent, subagentRuleDetector{r})
 			}
 		}
 	}
-	return detectors.New(tool, agent, repo, nil), nil
+	return detectors.New(tool, agent, repo, subagent), nil
 }
 
 // LoadRegistry loads policies from fsys and returns a populated detector Registry.
@@ -177,6 +206,7 @@ func LoadRegistry(fsys fs.FS) (*detectors.Registry, error) {
 	var tool []detectors.ToolDetector
 	var agent []detectors.AgentDetector
 	var repo []detectors.RepoDetector
+	var subagent []detectors.SubagentDetector
 	for _, p := range policies {
 		for _, r := range p.Rules {
 			switch r.Scope {
@@ -186,8 +216,10 @@ func LoadRegistry(fsys fs.FS) (*detectors.Registry, error) {
 				agent = append(agent, agentRuleDetector{r})
 			case models.ScopeRepo:
 				repo = append(repo, repoRuleDetector{r})
+			case models.ScopeSubagent:
+				subagent = append(subagent, subagentRuleDetector{r})
 			}
 		}
 	}
-	return detectors.New(tool, agent, repo, nil), nil
+	return detectors.New(tool, agent, repo, subagent), nil
 }
