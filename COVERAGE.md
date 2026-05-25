@@ -4,7 +4,7 @@ Coverage matrix for Trustabl's static analysis: which agent SDKs (and which
 languages) we currently scan, analyse, and detect against. This file is the
 at-a-glance reference; `ARCHITECTURE.md` has the implementation detail.
 
-_Last reviewed: 2026-05-25 (HEAD `04eb831`)._
+_Last reviewed: 2026-05-25 (HEAD `02c47e4`)._
 
 > **Note:** Detection rules are not shipped in the binary. They live in the
 > separate `trustabl-rules` git repository
@@ -20,7 +20,7 @@ Legend: ✅ full · ◐ partial · ❌ none · — N/A
 
 | SDK | Language | Scanning | Analysis (AST discovery) | Detection rules |
 |---|---|---|---|---|
-| **Claude Agent SDK** | Python | ✅ dep-scan + file inventory + `.claude/` components | ✅ tools, agents, subagents, settings | ✅ CSDK-001..007 (tool), CSDK-101 (agent) |
+| **Claude Agent SDK** | Python | ✅ dep-scan + file inventory + `.claude/` components | ✅ tools, agents, subagents (any depth), settings | ✅ CSDK-001..007 (tool), CSDK-101 (agent), CSDK-110 (subagent) |
 | **Claude Agent SDK** | TypeScript | ✅ dep-scan (`@anthropic-ai/claude-agent-sdk`) + file inventory + `.claude/` components | ✅ tools (`tool()` factory), agents (main thread `QueryMainAgent` per `query()` call + sub-agents inline-in-query + typed-const `AgentDefinition`), MCP servers (createSdkMcpServer + 4 config literals) | ❌ no TS rules yet (SP2) — META-004 fires |
 | **OpenAI Agents SDK** | Python | ✅ dep-scan + file inventory | ✅ tools, hosted tools (11 classes), agents, MCP servers (3 transports + alias), guardrails, sessions | ✅ OAI-001..006 (tool), OAI-101..105 (agent), OAI-201 (repo) |
 | **OpenAI Agents SDK** | TypeScript | ◐ file inventory only | ❌ no TS AST parser | ❌ |
@@ -41,7 +41,7 @@ Discovery sources: `internal/analysis/discovery.go`, `agents.go`, `subagents.go`
 |---|---|
 | Tools | Decorators: `@tool`, `@claude_tool`, `@agent.tool`, any decorator containing the substring `claude_agent_sdk`. Captures: function name, params, type annotations, docstring, decorator kwargs |
 | Agents | `AgentDefinition(...)` constructor calls. Captures every kwarg into a typed `KwargTree`: `name`, `description`, `prompt`, `tools`, `disallowedTools`, `permissionMode`, `mcpServers`, `skills`, `memory`, `maxTurns`, `background`, `effort`, `initialPrompt`. Typed accessors expose `tools`/`disallowedTools`/`permissionMode`/`mcpServers` without reaching into the tree |
-| Subagents | `.claude/agents/*.md` frontmatter (YAML between leading `---` markers): `name`, `description`, `tools` (scalar or YAML-list form), `model`. Files without frontmatter or without a `name:` are skipped |
+| Subagents | `.claude/agents/*.md` frontmatter (YAML between leading `---` markers): `name`, `description`, `tools` (scalar or YAML-list form), `model`. Files without frontmatter or without a `name:` are skipped. Matched at any path depth (monorepo-safe). Audited by subagent-scope rules — CSDK-110 ("Subagent granted the built-in Bash tool") is the shipped rule; predicate: `subagent_grants_tool: [Bash]`. Subagent rules carry no `language:` field (markdown frontmatter, language-agnostic) |
 | Settings | `.claude/settings.json` and `settings.local.json` JSON-parsed: `permissions.allow`/`deny`/`ask` decomposed via the grammar `<Tool>` \| `<Tool>(<pattern>)` plus `mcp__<server>__<tool>`; `defaultMode`, `additionalDirectories`, presence flags for `env`/`hooks`/`sandbox` |
 | Components surfaced (path-only) | `CLAUDE.md`, `.claude/commands/*.md`, `hooks/*.{py,ts,js,jsx,mjs}`, MCP configs (`mcp.json`, `mcp_servers.json`, `claude_desktop_config.json`) |
 

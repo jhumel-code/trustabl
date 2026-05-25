@@ -111,6 +111,20 @@ Always set `applies_to` explicitly — the loader does not infer scope from
 the category. Omitting it would make a rule fire against every entity of
 that scope regardless of SDK, which is almost never correct.
 
+**`scope: subagent`** — receives a `SubagentDef` (one `.claude/agents/*.md`
+frontmatter declaration, matched at any path depth). `applies_to` is matched
+against a fixed token:
+
+| `applies_to` value | Matches                                                         |
+| ------------------ | --------------------------------------------------------------- |
+| `claude_subagent`  | A `.claude/agents/*.md` subagent declaration (any path depth)   |
+
+Subagent rules use the `subagent_grants_tool` predicate (true when
+`SubagentDef.Tools` contains a listed tool name). They carry **no `language:`
+field** — subagents are markdown frontmatter, not code, and the
+`subagentRuleDetector.Applies` method does not gate on language. The shipped
+rule is CSDK-110 in `claude_sdk/subagent_safety.yaml`.
+
 ## "Add a rule for X"
 
 Default sequence:

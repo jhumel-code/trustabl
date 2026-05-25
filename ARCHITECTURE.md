@@ -165,7 +165,7 @@ flowchart TD
     score --> result
 ```
 
-The three scopes a rule can fire at — `tool`, `agent`, `repo` — flow into
+The four scopes a rule can fire at — `tool`, `agent`, `subagent`, `repo` — flow into
 `Registry.Run` from the same `RepoInventory`, but each detector consumes a
 different typed input:
 
@@ -176,11 +176,13 @@ flowchart LR
 
     inv -- "for each ToolDef" --> tool["ToolDetector<br/>Applies(ToolDef)<br/>Detect(ToolDef, ParsedFile, Inv)"]
     inv -- "for each AgentDef" --> agent["AgentDetector<br/>Applies(AgentDef)<br/>Detect(AgentDef, Inv)"]
+    inv -- "for each SubagentDef" --> subagent["SubagentDetector<br/>Applies(SubagentDef)<br/>Detect(SubagentDef, Inv)"]
     profile --> repo["RepoDetector<br/>Applies(Profile, Inv)<br/>Detect(Profile, Inv) (once)"]
     inv --> repo
 
     tool --> f[("Findings")]
     agent --> f
+    subagent --> f
     repo --> f
 ```
 
@@ -214,11 +216,14 @@ For each language recon cleared, do the AST work and produce a `RepoInventory`:
 - **DiscoverSessions** — finds construction sites for `*Session` classes from
   the agents SDK.
 - **DiscoverSubagents** (`subagents.go`) — reads every `.claude/agents/*.md`
-  component file in the manifest, parses YAML frontmatter (the block between
-  leading `---` markers), and emits one `SubagentDef` per file with frontmatter.
-  Files without frontmatter or with malformed YAML are skipped silently. The
-  `tools:` field accepts both the comma-separated scalar form
-  (`tools: Read, Bash`) and the YAML-list form (`tools:\n - Read\n - Bash`).
+  component file in the manifest (matched at any path depth — monorepos that
+  nest agent projects under `agent/.claude/agents/` or
+  `packages/x/.claude/agents/` are handled), parses YAML frontmatter (the
+  block between leading `---` markers), and emits one `SubagentDef` per file
+  with frontmatter. Files without frontmatter or with malformed YAML are
+  skipped silently. The `tools:` field accepts both the comma-separated scalar
+  form (`tools: Read, Bash`) and the YAML-list form
+  (`tools:\n - Read\n - Bash`).
 - **DiscoverClaudeSettings** (`claude_settings.go`) — JSON-parses every
   `.claude/settings.json` (and `settings.local.json`) component into a typed
   `ClaudeSettings`. The `permissions` block's allow/deny/ask lists are
@@ -268,7 +273,7 @@ tools. Component kinds:
 | `mcp_config`          | `mcp.json`, `mcp_servers.json`, `claude_desktop_config.json`   |
 | `claude_md`           | `CLAUDE.md` / `claude.md` at any depth                         |
 | `claude_settings`     | `.claude/settings.json`, `.claude/settings.local.json`         |
-| `subagent`            | `.claude/agents/*.md`                                          |
+| `subagent`            | `.claude/agents/*.md` at any path depth                        |
 | `slash_command`       | `.claude/commands/*.md`                                        |
 | `hook_script`         | `hooks/*.{py,ts,js,jsx,mjs}`                                   |
 | `sandbox_policy`      | `openshell/*.yaml` / `openshell/*.yml`                         |
@@ -329,7 +334,7 @@ in tree-sitter terms).
 ### Steps 3–4 — Policy selection and analysis ([internal/rules/](internal/rules/) + [internal/analysis/detectors/](internal/analysis/detectors/))
 
 Detection is **YAML-driven**. The `internal/analysis/detectors` package owns
-three typed interfaces and the `Registry` runtime; concrete detectors are
+four typed interfaces and the `Registry` runtime; concrete detectors are
 produced by `internal/rules` from the YAML policy files resolved out of the
 external rules repository (see §2 — Rule resolution).
 
@@ -357,14 +362,24 @@ type RepoDetector interface {
     Applies(models.RepoProfile, models.RepoInventory) bool
     Detect(models.RepoProfile, models.RepoInventory) []models.Finding
 }
+
+// SubagentDetector fires against one SubagentDef at a time. Subagents are
+// .claude/agents/*.md frontmatter declarations — no function body or AST
+// (markdown frontmatter, not code), so Detect takes no ParsedFile.
+type SubagentDetector interface {
+    RuleID() string
+    Category() models.DetectorCategory
+    Applies(models.SubagentDef) bool
+    Detect(models.SubagentDef, models.RepoInventory) []models.Finding
+}
 ```
 
-`Registry.Run(profile, inv, parsed, onEntity)` iterates all three slices:
+`Registry.Run(profile, inv, parsed, onEntity)` iterates all four slices:
 ToolDetectors fire per `inv.Tools`, AgentDetectors per `inv.Agents`,
-RepoDetectors once. The optional `onEntity` callback is invoked once per
-tool/agent visited (used by the CLI to drive the per-entity progress bar);
-passing `nil` is fine. Findings are sorted deterministically by
-`(RuleID, FilePath, Line)`.
+SubagentDetectors per `inv.Subagents`, RepoDetectors once. The optional
+`onEntity` callback is invoked once per tool/agent/subagent visited (used by
+the CLI to drive the per-entity progress bar); passing `nil` is fine. Findings
+are sorted deterministically by `(RuleID, FilePath, Line)`.
 
 Pipeline at startup:
 
@@ -373,10 +388,10 @@ Pipeline at startup:
 2. `rules.LoadFor(fsys, inv.SDKsDetected)` walks recursively, decodes every
    `.yaml` file, validates required fields / enums / cross-file rule-ID
    uniqueness, then wraps each `RuleDef` whose category matches an SDK in
-   `SDKsDetected` as a `ToolRuleDetector`, `AgentRuleDetector`, or
-   `RepoRuleDetector` based on the rule's `scope:` field. (Tests that want
-   every shipped rule loaded unconditionally use `rules.LoadRegistry(fsys)`
-   instead — same loader, no SDK filter.)
+   `SDKsDetected` as a `ToolRuleDetector`, `AgentRuleDetector`,
+   `RepoRuleDetector`, or `SubagentRuleDetector` based on the rule's `scope:`
+   field. (Tests that want every shipped rule loaded unconditionally use
+   `rules.LoadRegistry(fsys)` instead — same loader, no SDK filter.)
 3. Each detector's `Detect` evaluates the rule's `MatchExpr` against the
    typed input; on a match it emits one `Finding` populated from the rule's
    metadata.
@@ -402,6 +417,7 @@ Shipped rules (one row per YAML rule entry):
 | CSDK-006 | tool | claude_sdk | medium   | `claude_sdk/idempotency.yaml`            | Mutating verb in name + no idempotency-key param                    |
 | CSDK-007 | tool | claude_sdk | low      | `claude_sdk/tool_definition.yaml`        | Ambiguous name (`process`, `handle`, `run`, …)                      |
 | CSDK-101 | agent | claude_sdk | high    | `claude_sdk/agent_safety.yaml`           | Claude `AgentDefinition` subagent granted the built-in `Bash` tool  |
+| CSDK-110 | subagent | claude_sdk | high | `claude_sdk/subagent_safety.yaml`        | Subagent granted the built-in Bash tool                             |
 | OAI-001 | tool  | openai_sdk | low      | `openai_sdk/tool_definition.yaml`        | Tool function has no docstring                                      |
 | OAI-002 | tool  | openai_sdk | medium   | `openai_sdk/tool_definition.yaml`        | Tool has no type-annotated parameters                               |
 | OAI-003 | tool  | openai_sdk | medium   | `openai_sdk/decorator_config.yaml`       | `@function_tool(strict_mode=False)` — schema not enforced           |
@@ -942,10 +958,10 @@ top-level `manifest.yaml`. Tests inject `testdata/rules-fixture/` via
 
 ### Detector interface boundary ([detectors/detector.go](internal/analysis/detectors/detector.go))
 
-The `detectors` package is interface + runtime only. It owns three typed
-interfaces — `ToolDetector`, `AgentDetector`, `RepoDetector` — and the
-`Registry` type that runs them. `Registry.New(tool, agent, repo []…)` accepts
-three slices; `Run`, `Subset(cats…)`, `ApplicableCategories`, and `Count`
+The `detectors` package is interface + runtime only. It owns four typed
+interfaces — `ToolDetector`, `AgentDetector`, `RepoDetector`, `SubagentDetector` — and the
+`Registry` type that runs them. `Registry.New(tool, agent, repo, subagent []…)` accepts
+four slices; `Run`, `Subset(cats…)`, `ApplicableCategories`, and `Count`
 operate on the union. There is no single `Detector` interface and no
 `Singleton` flag — scope is now an explicit choice at construction time.
 
@@ -966,7 +982,7 @@ flowchart LR
     loader["rules.Load<br/>· KnownFields(true)<br/>· required-field validation<br/>· severity/category/scope enums<br/>· applies_to-vs-scope check<br/>· cross-file ID uniqueness"]
     rules[("[]PolicyFile")]
     loadfor["rules.LoadFor(SDKsDetected)<br/>filters by inventory"]
-    wrap["wrap each RuleDef as<br/>ToolRuleDetector / AgentRuleDetector / RepoRuleDetector"]
+    wrap["wrap each RuleDef as<br/>ToolRuleDetector / AgentRuleDetector / RepoRuleDetector / SubagentRuleDetector"]
     registry[("detectors.Registry")]
     evaluate["MatchExpr.Evaluate<br/>(recursive conjunctive walker)"]
     finding[("Finding<br/>RuleID · Severity · Confidence<br/>Explanation · SuggestedFix")]
