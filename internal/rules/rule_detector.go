@@ -165,7 +165,7 @@ func LoadFor(fsys fs.FS, sdks []models.SDK) (*detectors.Registry, error) {
 			}
 		}
 	}
-	return detectors.New(tool, agent, repo), nil
+	return detectors.New(tool, agent, repo, nil), nil
 }
 
 // LoadRegistry loads policies from fsys and returns a populated detector Registry.
@@ -189,5 +189,5 @@ func LoadRegistry(fsys fs.FS) (*detectors.Registry, error) {
 			}
 		}
 	}
-	return detectors.New(tool, agent, repo), nil
+	return detectors.New(tool, agent, repo, nil), nil
 }

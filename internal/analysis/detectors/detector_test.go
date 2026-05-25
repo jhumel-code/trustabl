@@ -45,6 +45,22 @@ func (f fakeRepo) Detect(models.RepoProfile, models.RepoInventory) []models.Find
 	return nil
 }
 
+type fakeSubagentDetector struct {
+	id    string
+	cat   models.DetectorCategory
+	fires bool
+}
+
+func (d fakeSubagentDetector) RuleID() string                    { return d.id }
+func (d fakeSubagentDetector) Category() models.DetectorCategory { return d.cat }
+func (d fakeSubagentDetector) Applies(models.SubagentDef) bool   { return true }
+func (d fakeSubagentDetector) Detect(s models.SubagentDef, _ models.RepoInventory) []models.Finding {
+	if !d.fires {
+		return nil
+	}
+	return []models.Finding{{RuleID: d.id, ToolName: s.Name}}
+}
+
 func newTestRegistry() *Registry {
 	return New(
 		[]ToolDetector{
@@ -57,6 +73,7 @@ func newTestRegistry() *Registry {
 		[]RepoDetector{
 			fakeRepo{id: "OAI-201", cat: models.CategoryOpenAISDK},
 		},
+		nil,
 	)
 }
 
@@ -64,7 +81,7 @@ func TestRegistryCount(t *testing.T) {
 	if got := newTestRegistry().Count(); got != 4 {
 		t.Fatalf("Count() = %d, want 4", got)
 	}
-	if got := New(nil, nil, nil).Count(); got != 0 {
+	if got := New(nil, nil, nil, nil).Count(); got != 0 {
 		t.Fatalf("empty Count() = %d, want 0", got)
 	}
 }
@@ -99,5 +116,25 @@ func TestRegistrySubset(t *testing.T) {
 	// Subset must not mutate the original registry.
 	if got := r.Count(); got != 4 {
 		t.Fatalf("original registry mutated by Subset: Count() = %d, want 4", got)
+	}
+}
+
+func TestRegistry_RunsSubagentDetectors(t *testing.T) {
+	reg := New(nil, nil, nil, []SubagentDetector{
+		fakeSubagentDetector{id: "SUB-1", cat: "claude_sdk", fires: true},
+	})
+	inv := models.RepoInventory{
+		Subagents: []models.SubagentDef{{Name: "searcher", FilePath: ".claude/agents/searcher.md"}},
+	}
+	findings := reg.Run(models.RepoProfile{}, inv, nil, nil)
+	if len(findings) != 1 || findings[0].RuleID != "SUB-1" {
+		t.Fatalf("expected one SUB-1 finding, got %+v", findings)
+	}
+	if reg.Count() != 1 {
+		t.Errorf("Count: got %d, want 1", reg.Count())
+	}
+	cats := reg.ApplicableCategories(models.RepoProfile{}, inv)
+	if !cats["claude_sdk"] {
+		t.Errorf("ApplicableCategories missing claude_sdk: %+v", cats)
 	}
 }

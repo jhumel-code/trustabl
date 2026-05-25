@@ -41,16 +41,27 @@ type RepoDetector interface {
 	Detect(models.RepoProfile, models.RepoInventory) []models.Finding
 }
 
+// SubagentDetector fires against one SubagentDef at a time. Subagents are
+// .claude/agents/*.md frontmatter declarations — no function body or AST, so
+// Detect takes no ParsedFile (like AgentDetector).
+type SubagentDetector interface {
+	RuleID() string
+	Category() models.DetectorCategory
+	Applies(models.SubagentDef) bool
+	Detect(models.SubagentDef, models.RepoInventory) []models.Finding
+}
+
 // Registry is the set of detectors active for a scan.
 type Registry struct {
-	tool  []ToolDetector
-	agent []AgentDetector
-	repo  []RepoDetector
+	tool     []ToolDetector
+	agent    []AgentDetector
+	repo     []RepoDetector
+	subagent []SubagentDetector
 }
 
 // New returns a Registry holding the given detectors.
-func New(tool []ToolDetector, agent []AgentDetector, repo []RepoDetector) *Registry {
-	return &Registry{tool: tool, agent: agent, repo: repo}
+func New(tool []ToolDetector, agent []AgentDetector, repo []RepoDetector, subagent []SubagentDetector) *Registry {
+	return &Registry{tool: tool, agent: agent, repo: repo, subagent: subagent}
 }
 
 // Run executes every applicable detector across tools, agents, and repo,
@@ -84,6 +95,17 @@ func (r *Registry) Run(profile models.RepoProfile, inv models.RepoInventory, par
 				continue
 			}
 			out = append(out, d.Detect(a, inv)...)
+		}
+	}
+	for _, s := range inv.Subagents {
+		if onEntity != nil {
+			onEntity("subagent: " + s.Name)
+		}
+		for _, d := range r.subagent {
+			if !d.Applies(s) {
+				continue
+			}
+			out = append(out, d.Detect(s, inv)...)
 		}
 	}
 	for _, d := range r.repo {
@@ -128,6 +150,14 @@ func (r *Registry) ApplicableCategories(profile models.RepoProfile, inv models.R
 			}
 		}
 	}
+	for _, d := range r.subagent {
+		for _, s := range inv.Subagents {
+			if d.Applies(s) {
+				out[d.Category()] = true
+				break
+			}
+		}
+	}
 	for _, d := range r.repo {
 		if d.Applies(profile, inv) {
 			out[d.Category()] = true
@@ -158,11 +188,18 @@ func (r *Registry) Subset(cats ...models.DetectorCategory) *Registry {
 			sub.repo = append(sub.repo, d)
 		}
 	}
+	for _, d := range r.subagent {
+		if cset[d.Category()] {
+			sub.subagent = append(sub.subagent, d)
+		}
+	}
 	return &sub
 }
 
 // Count returns the total number of registered detectors.
-func (r *Registry) Count() int { return len(r.tool) + len(r.agent) + len(r.repo) }
+func (r *Registry) Count() int {
+	return len(r.tool) + len(r.agent) + len(r.repo) + len(r.subagent)
+}
 
 func parsedFor(filePath string, parsed []analysis.ParsedFile) analysis.ParsedFile {
 	for _, pf := range parsed {
