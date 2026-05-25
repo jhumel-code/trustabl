@@ -272,19 +272,21 @@ func discoverComponents(root string, m models.ScanManifest) []models.AgentCompon
 		}
 	}
 
-	// .claude/ subtree: settings, agents, commands.
+	// .claude/ subtree: settings, agents, commands. Match the .claude/<kind>/
+	// segment at ANY depth, not just repo root — monorepos nest agent
+	// projects (e.g. agent/.claude/agents/, packages/x/.claude/agents/).
 	for _, p := range m.JSONFiles {
 		base := filepath.Base(p)
-		if strings.HasPrefix(p, ".claude/") &&
+		if hasClaudeSegment(p, "") &&
 			(base == "settings.json" || base == "settings.local.json") {
 			out = append(out, models.AgentComponent{Kind: models.ComponentClaudeSettings, Path: p})
 		}
 	}
 	for _, p := range m.MarkdownFiles {
 		switch {
-		case strings.HasPrefix(p, ".claude/agents/"):
+		case hasClaudeSegment(p, "agents/"):
 			out = append(out, models.AgentComponent{Kind: models.ComponentSubagent, Path: p})
-		case strings.HasPrefix(p, ".claude/commands/"):
+		case hasClaudeSegment(p, "commands/"):
 			out = append(out, models.AgentComponent{Kind: models.ComponentSlashCommand, Path: p})
 		}
 	}
@@ -373,4 +375,14 @@ func discoverComponents(root string, m models.ScanManifest) []models.AgentCompon
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
+}
+
+// hasClaudeSegment reports whether forward-slash path p contains a
+// ".claude/<sub>" segment at any depth (repo root or nested under a project
+// dir). sub is "" to match the .claude/ dir itself (for files like
+// settings.json directly in .claude/), or "agents/" / "commands/" to match a
+// specific subdirectory.
+func hasClaudeSegment(p, sub string) bool {
+	seg := ".claude/" + sub
+	return strings.HasPrefix(p, seg) || strings.Contains(p, "/"+seg)
 }

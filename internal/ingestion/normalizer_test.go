@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/trustabl/trustabl/internal/models"
 )
 
 func TestDetectSDKDeps_GoogleADK(t *testing.T) {
@@ -128,5 +130,49 @@ func TestNormalize_CollectsMTSAndCTS(t *testing.T) {
 	}
 	if len(m.TypeScriptFiles) != 4 {
 		t.Errorf("expected 4 TS files (.ts/.tsx/.mts/.cts), got %d: %v", len(m.TypeScriptFiles), m.TypeScriptFiles)
+	}
+}
+
+func TestNormalize_NestedClaudeAgentsClassified(t *testing.T) {
+	dir := t.TempDir()
+	mustWrite := func(rel, content string) {
+		t.Helper()
+		full := filepath.Join(dir, rel)
+		if err := os.MkdirAll(filepath.Dir(full), 0755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(full, []byte(content), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	mustWrite("agent/.claude/agents/inbox-searcher.md", "---\nname: inbox-searcher\n---\n")
+	mustWrite(".claude/agents/root-agent.md", "---\nname: root-agent\n---\n")
+	mustWrite("agent/.claude/agents/notes.txt", "not a subagent")
+	mustWrite("agent/.claude/settings.json", "{}")
+	mustWrite("agent/.claude/commands/foo.md", "# cmd")
+
+	src := &Source{RootPath: dir}
+	m, err := Normalize(src)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	kindsByPath := map[string]models.ComponentKind{}
+	for _, c := range m.Components {
+		kindsByPath[c.Path] = c.Kind
+	}
+	want := map[string]models.ComponentKind{
+		"agent/.claude/agents/inbox-searcher.md": models.ComponentSubagent,
+		".claude/agents/root-agent.md":           models.ComponentSubagent,
+		"agent/.claude/settings.json":            models.ComponentClaudeSettings,
+		"agent/.claude/commands/foo.md":          models.ComponentSlashCommand,
+	}
+	for path, wantKind := range want {
+		if got := kindsByPath[path]; got != wantKind {
+			t.Errorf("path %q: got kind %q, want %q", path, got, wantKind)
+		}
+	}
+	if k, found := kindsByPath["agent/.claude/agents/notes.txt"]; found {
+		t.Errorf("notes.txt should not be classified, got kind %q", k)
 	}
 }
