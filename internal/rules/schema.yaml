@@ -75,13 +75,15 @@ rules:
                                             # for that kind. Cross-SDK rules belong in their own
                                             # SDK-specific policy file with their own framing.
 
-    scope: tool                             # REQUIRED. One of: tool | agent | repo.
+    scope: tool                             # REQUIRED. One of: tool | agent | repo | subagent.
                                             #   tool  — fires per ToolDef. Input: a ToolDef + ParsedFile.
                                             #           applies_to accepts: claude_sdk_tool, openai_tool,
                                             #           mcp_tool, shell_invocation, unknown.
                                             #   agent — fires per AgentDef (Agent/SandboxAgent/AgentDefinition
                                             #           constructor call). applies_to accepts: openai_agent,
                                             #           openai_sandbox_agent, claude_agent_definition.
+                                            #   subagent — fires per Claude Code subagent. applies_to accepts:
+                                            #           claude_subagent.
                                             #   repo  — fires once per scan. applies_to accepts:
                                             #           claude_sdk, openai_agents, openshell, mcp.
 
@@ -270,6 +272,16 @@ rules:
 #       agent's HandoffRefs in the inventory. Useful for rules that fire only
 #       on agents that participate in a delegation tree (e.g. ADK's sub_agents
 #       composition or OpenAI's handoffs= edges).
+#
+#
+# ━━━ SUBAGENT-SCOPE PREDICATES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+# (used only in scope: subagent rules)
+#
+#   subagent_grants_tool: [Bash, Write, ...]
+#       Fires when the subagent's frontmatter tools= list contains any of the
+#       given Claude Code tool names (string matching against the raw tool name
+#       in the list — e.g. tools: [Bash, Write, WebSearch]). Use for subagents
+#       that call system tools or manipulate files.
 #
 #
 # ━━━ REPO-SCOPE PREDICATES ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
